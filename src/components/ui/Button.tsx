@@ -1,7 +1,7 @@
 import React from 'react'
 import { colors } from '../../theme/colors'
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline'
 
 interface ButtonProps {
   label: string
@@ -12,6 +12,7 @@ interface ButtonProps {
   disabled?: boolean
   fullWidth?: boolean
   style?: React.CSSProperties
+  icon?: string
 }
 
 export default function Button({
@@ -23,19 +24,20 @@ export default function Button({
   disabled = false,
   fullWidth = false,
   style,
+  icon,
 }: ButtonProps) {
   const getStyle = (): React.CSSProperties => {
     const base: React.CSSProperties = {
-      padding: '12px 24px',
+      padding: '13px 26px',
       borderRadius: '999px',
       border: 'none',
       fontFamily: 'Syne, sans-serif',
       fontWeight: 700,
-      fontSize: '14px',
-      letterSpacing: '0.3px',
+      fontSize: '15px',
+      letterSpacing: '0.2px',
       cursor: disabled || loading ? 'not-allowed' : 'pointer',
-      opacity: disabled || loading ? 0.5 : 1,
-      transition: 'all 0.15s',
+      opacity: disabled || loading ? 0.45 : 1,
+      transition: 'all 0.15s ease',
       width: fullWidth ? '100%' : 'auto',
       display: 'inline-flex',
       alignItems: 'center',
@@ -45,7 +47,9 @@ export default function Button({
 
     switch (variant) {
       case 'primary':
-        return { ...base, backgroundColor: colors.gold, color: '#09090B' }
+        return { ...base, backgroundColor: colors.primary, color: '#FFFFFF' }
+      case 'outline':
+        return { ...base, backgroundColor: 'transparent', color: colors.primary, border: `1.5px solid ${colors.primary}` }
       case 'secondary':
         return { ...base, backgroundColor: colors.bgElevated, color: colors.text, border: `1px solid ${colors.borderStrong}` }
       case 'ghost':
@@ -62,6 +66,7 @@ export default function Button({
       disabled={disabled || loading}
       style={{ ...getStyle(), ...style }}
     >
+      {icon && <span>{icon}</span>}
       {loading ? 'Loading...' : label}
     </button>
   )

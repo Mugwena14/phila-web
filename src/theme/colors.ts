@@ -1,20 +1,29 @@
 export const colors = {
-  bgBase: '#09090B',
-  bgSurface: '#111114',
-  bgElevated: '#18181C',
-  gold: '#F0C040',
-  goldDim: '#C8960A',
-  goldBg: 'rgba(240,192,64,0.08)',
-  goldBorder: 'rgba(240,192,64,0.18)',
-  teal: '#00D4AA',
-  tealBg: 'rgba(0,212,170,0.08)',
-  tealBorder: 'rgba(0,212,170,0.18)',
-  coral: '#FF6B4A',
-  coralBg: 'rgba(255,107,74,0.08)',
-  coralBorder: 'rgba(255,107,74,0.18)',
-  text: '#F2F2F0',
-  textMuted: '#AAAAAA',
-  textFaint: '#666662',
-  border: 'rgba(255,255,255,0.07)',
-  borderStrong: 'rgba(255,255,255,0.12)',
+  bgBase: '#080F0E',
+  bgSurface: '#0D1614',
+  bgElevated: '#142420',
+
+  primary: '#14B8A6',
+  primaryDim: '#0F8A7B',
+  primaryBg: 'rgba(20,184,166,0.08)',
+  primaryBorder: 'rgba(20,184,166,0.2)',
+
+  // Keep these for compatibility
+  teal: '#14B8A6',
+  tealBg: 'rgba(20,184,166,0.08)',
+  tealBorder: 'rgba(20,184,166,0.2)',
+  gold: '#14B8A6',
+  goldBg: 'rgba(20,184,166,0.08)',
+  goldBorder: 'rgba(20,184,166,0.2)',
+
+  coral: '#FF6B6B',
+  coralBg: 'rgba(255,107,107,0.08)',
+  coralBorder: 'rgba(255,107,107,0.2)',
+
+  text: '#F0F4F3',
+  textMuted: '#8FA89E',
+  textFaint: '#4A6560',
+
+  border: 'rgba(20,184,166,0.08)',
+  borderStrong: 'rgba(20,184,166,0.16)',
 }
