@@ -24,6 +24,7 @@ import {
   HiOutlineSun,
 } from 'react-icons/hi'
 import { RiRobot2Line } from 'react-icons/ri'
+import CopilotPage from './CopilotPage'
 
 // ── Icon wrapper — fixes TS2786 return type error ──────────────────
 const Ico = ({ i: I, size = 18, style }: { i: any; size?: number; style?: React.CSSProperties }) => (
@@ -261,7 +262,7 @@ export default function DashboardLayout() {
             <Route path="bookings" element={<BookingsPage />} />
             <Route path="documents" element={<DocumentsPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="copilot" element={<div style={{ padding: 32, color: c.text }}>AI Co-pilot — coming soon</div>} />
+            <Route path="copilot" element={<CopilotPage />} />
           </Routes>
         </div>
       </div>
