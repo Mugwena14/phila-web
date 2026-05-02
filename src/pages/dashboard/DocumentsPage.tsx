@@ -12,6 +12,7 @@ import {
   HiOutlineEye,
   HiOutlineChevronDown,
   HiOutlineRefresh,
+  HiOutlineTrash,
 } from 'react-icons/hi'
 import { RiRobot2Line } from 'react-icons/ri'
 
@@ -42,7 +43,16 @@ interface Document {
   booking_id: string
 }
 
-const DOC_TYPES = [
+interface DocTemplate {
+  id: string
+  name: string
+  description: string
+  filename: string
+  placeholders: string[]
+  created_at: string
+}
+
+const BUILT_IN_DOC_TYPES = [
   { key: 'sick_letter',         label: 'Sick Letter',         desc: 'For employer or school absence' },
   { key: 'medical_certificate', label: 'Medical Certificate', desc: 'Formal certificate for records' },
   { key: 'referral_letter',     label: 'Referral Letter',     desc: 'Refer to another specialist' },
@@ -59,18 +69,41 @@ const DOC_TYPE_MAP: Record<string, string> = {
 function buildDefaultContent(docType: string, booking: Booking, doctorName: string) {
   const brief = booking.intake_brief
   const today = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+  const patientName = booking.doctor_name
   switch (docType) {
     case 'sick_letter':
-      return { patient_name: booking.doctor_name, date_of_visit: booking.slot_date, date_issued: today, days_off: '3', from_date: booking.slot_date, to_date: '', diagnosis: brief?.main_concern ?? booking.reason ?? '', doctor_name: doctorName, practice_name: booking.practice_name, notes: brief?.additional_notes ?? '' }
+      return { patient_name: patientName, date_of_visit: booking.slot_date, date_issued: today, days_off: '3', from_date: booking.slot_date, to_date: '', diagnosis: brief?.main_concern ?? booking.reason ?? '', doctor_name: doctorName, practice_name: booking.practice_name, notes: brief?.additional_notes ?? '' }
     case 'medical_certificate':
-      return { patient_name: booking.doctor_name, date_of_visit: booking.slot_date, date_issued: today, diagnosis: brief?.main_concern ?? booking.reason ?? '', duration: brief?.duration ?? '', doctor_name: doctorName, practice_name: booking.practice_name, qualification: '', hpcsa_number: '', notes: '' }
+      return { patient_name: patientName, date_of_visit: booking.slot_date, date_issued: today, diagnosis: brief?.main_concern ?? booking.reason ?? '', duration: brief?.duration ?? '', doctor_name: doctorName, practice_name: booking.practice_name, qualification: '', hpcsa_number: '', notes: '' }
     case 'referral_letter':
-      return { patient_name: booking.doctor_name, date_issued: today, referring_doctor: doctorName, practice_name: booking.practice_name, referred_to_specialty: '', referred_to_doctor: '', reason_for_referral: brief?.main_concern ?? booking.reason ?? '', relevant_history: brief?.additional_notes ?? '', current_medications: brief?.medications?.join(', ') ?? '', allergies: brief?.allergies?.join(', ') ?? '', urgency: 'Routine' }
+      return { patient_name: patientName, date_issued: today, referring_doctor: doctorName, practice_name: booking.practice_name, referred_to_specialty: '', referred_to_doctor: '', reason_for_referral: brief?.main_concern ?? booking.reason ?? '', relevant_history: brief?.additional_notes ?? '', current_medications: brief?.medications?.join(', ') ?? '', allergies: brief?.allergies?.join(', ') ?? '', urgency: 'Routine' }
     case 'visit_summary':
-      return { patient_name: booking.doctor_name, date_of_visit: booking.slot_date, doctor_name: doctorName, practice_name: booking.practice_name, chief_complaint: brief?.main_concern ?? booking.reason ?? '', duration: brief?.duration ?? '', severity: brief?.severity ?? '', medications_prescribed: brief?.medications?.join(', ') ?? '', allergies: brief?.allergies?.join(', ') ?? '', recommendations: '', follow_up: '', notes: brief?.additional_notes ?? '' }
+      return { patient_name: patientName, date_of_visit: booking.slot_date, doctor_name: doctorName, practice_name: booking.practice_name, chief_complaint: brief?.main_concern ?? booking.reason ?? '', duration: brief?.duration ?? '', severity: brief?.severity ?? '', medications_prescribed: brief?.medications?.join(', ') ?? '', allergies: brief?.allergies?.join(', ') ?? '', recommendations: '', follow_up: '', notes: brief?.additional_notes ?? '' }
     default:
       return {}
   }
+}
+
+function buildTemplateValues(template: DocTemplate, booking: Booking, doctorName: string): Record<string, string> {
+  const brief = booking.intake_brief
+  const today = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+  const prefilled: Record<string, string> = {}
+  template.placeholders.forEach(key => {
+    const k = key.toLowerCase()
+    if (k.includes('patient') && k.includes('name')) prefilled[key] = booking.doctor_name
+    else if (k.includes('doctor')) prefilled[key] = doctorName
+    else if (k.includes('practice')) prefilled[key] = booking.practice_name
+    else if (k.includes('date') && k.includes('visit')) prefilled[key] = booking.slot_date
+    else if (k.includes('date')) prefilled[key] = today
+    else if (k.includes('diagnosis') || k.includes('concern')) prefilled[key] = brief?.main_concern ?? booking.reason ?? ''
+    else if (k.includes('medication')) prefilled[key] = brief?.medications?.join(', ') ?? ''
+    else if (k.includes('allerg')) prefilled[key] = brief?.allergies?.join(', ') ?? ''
+    else if (k.includes('note') || k.includes('additional')) prefilled[key] = brief?.additional_notes ?? ''
+    else if (k.includes('duration')) prefilled[key] = brief?.duration ?? ''
+    else if (k.includes('severity')) prefilled[key] = brief?.severity ? `${brief.severity}/10` : ''
+    else prefilled[key] = ''
+  })
+  return prefilled
 }
 
 function FieldGroup({ label, value, onChange, multiline = false, placeholder = '', colors }: {
@@ -88,7 +121,9 @@ function FieldGroup({ label, value, onChange, multiline = false, placeholder = '
   )
 }
 
-function DocumentForm({ docType, content, onChange, colors }: { docType: string; content: any; onChange: (k: string, v: string) => void; colors: any }) {
+function DocumentForm({ docType, content, onChange, colors }: {
+  docType: string; content: any; onChange: (k: string, v: string) => void; colors: any
+}) {
   const f = (key: string, label: string, multiline = false, placeholder = '') => (
     <FieldGroup key={key} label={label} value={content[key] ?? ''} onChange={v => onChange(key, v)} multiline={multiline} placeholder={placeholder} colors={colors} />
   )
@@ -101,7 +136,9 @@ function DocumentForm({ docType, content, onChange, colors }: { docType: string;
   }
 }
 
-function DocumentPreview({ docType, content, doctorName, practiceName }: { docType: string; content: any; doctorName: string; practiceName: string }) {
+function DocumentPreview({ docType, content, doctorName, practiceName }: {
+  docType: string; content: any; doctorName: string; practiceName: string
+}) {
   const today = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
   const title = DOC_TYPE_MAP[docType] ?? docType
   return (
@@ -124,14 +161,18 @@ function DocumentPreview({ docType, content, doctorName, practiceName }: { docTy
 
 export default function DocumentsPage() {
   const { colors } = useTheme()
-  const [bookings, setBookings]     = useState<Booking[]>([])
-  const [documents, setDocuments]   = useState<Document[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [search, setSearch]         = useState('')
-  const [typeFilter, setTypeFilter] = useState('all')
-  const [doctorName, setDoctorName] = useState('')
+
+  const [bookings, setBookings]         = useState<Booking[]>([])
+  const [documents, setDocuments]       = useState<Document[]>([])
+  const [templates, setTemplates]       = useState<DocTemplate[]>([])
+  const [patientMap, setPatientMap]     = useState<Record<string, string>>({})
+  const [loading, setLoading]           = useState(true)
+  const [search, setSearch]             = useState('')
+  const [typeFilter, setTypeFilter]     = useState('all')
+  const [doctorName, setDoctorName]     = useState('')
   const [practiceName, setPracticeName] = useState('')
 
+  // Generate modal — built-in
   const [showGenModal, setShowGenModal]       = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [selectedDocType, setSelectedDocType] = useState('sick_letter')
@@ -139,8 +180,14 @@ export default function DocumentsPage() {
   const [previewMode, setPreviewMode]         = useState(false)
   const [saving, setSaving]                   = useState(false)
 
-  const [viewDoc, setViewDoc]       = useState<Document | null>(null)
-  const [editingDoc, setEditingDoc] = useState(false)
+  // Template generation
+  const [selectedTemplate, setSelectedTemplate]   = useState<DocTemplate | null>(null)
+  const [templateValues, setTemplateValues]       = useState<Record<string, string>>({})
+  const [uploadingTemplate, setUploadingTemplate] = useState(false)
+
+  // View/edit modal
+  const [viewDoc, setViewDoc]         = useState<Document | null>(null)
+  const [editingDoc, setEditingDoc]   = useState(false)
   const [editContent, setEditContent] = useState<any>({})
 
   useEffect(() => { load() }, [])
@@ -148,16 +195,33 @@ export default function DocumentsPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [bookingsRes, doctorRes] = await Promise.all([
+      const [bookingsRes, doctorRes, templatesRes] = await Promise.all([
         apiClient.get('/bookings/practice'),
         apiClient.get('/doctors/today'),
+        apiClient.get('/documents/templates').catch(() => ({ data: [] })),
       ])
-      setBookings(bookingsRes.data)
-      const doc = doctorRes.data.doctor ?? doctorRes.data
-      setDoctorName(doc.user_id ?? '')
-      setPracticeName(doc.practice_name ?? '')
 
-      const docsPromises = bookingsRes.data.map((b: Booking) =>
+      const bkgs: Booking[] = bookingsRes.data
+      setBookings(bkgs)
+      setTemplates(templatesRes.data)
+
+      // Build patient name map
+      const map: Record<string, string> = {}
+      bkgs.forEach(b => { map[b.id] = b.doctor_name })
+      setPatientMap(map)
+
+      // Get doctor info
+      const doc = doctorRes.data.doctor ?? doctorRes.data
+      setPracticeName(doc.practice_name ?? '')
+      try {
+        const userRes = await apiClient.get('/auth/me')
+        setDoctorName(`Dr. ${userRes.data.full_name ?? doc.practice_name}`)
+      } catch {
+        setDoctorName(`Dr. ${doc.practice_name}`)
+      }
+
+      // Load documents
+      const docsPromises = bkgs.map((b: Booking) =>
         apiClient.get(`/documents/patient/${b.patient_id ?? b.id}`).catch(() => ({ data: [] }))
       )
       const docsResults = await Promise.all(docsPromises)
@@ -177,6 +241,8 @@ export default function DocumentsPage() {
   const openGenerate = (booking: Booking) => {
     setSelectedBooking(booking)
     setSelectedDocType('sick_letter')
+    setSelectedTemplate(null)
+    setTemplateValues({})
     setDocContent(buildDefaultContent('sick_letter', booking, doctorName))
     setPreviewMode(false)
     setShowGenModal(true)
@@ -184,18 +250,90 @@ export default function DocumentsPage() {
 
   const handleDocTypeChange = (type: string) => {
     setSelectedDocType(type)
+    setSelectedTemplate(null)
+    setTemplateValues({})
     if (selectedBooking) setDocContent(buildDefaultContent(type, selectedBooking, doctorName))
     setPreviewMode(false)
+  }
+
+  const handleTemplateSelect = (template: DocTemplate) => {
+    setSelectedTemplate(template)
+    setSelectedDocType('template')
+    if (selectedBooking) setTemplateValues(buildTemplateValues(template, selectedBooking, doctorName))
+    setPreviewMode(false)
+  }
+
+  const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.name.endsWith('.docx')) {
+      alert('Only .docx files are supported')
+      return
+    }
+    setUploadingTemplate(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('name', file.name.replace('.docx', '').replace(/_/g, ' '))
+    formData.append('description', '')
+    try {
+      await apiClient.post('/documents/templates/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      await load()
+    } catch (err) {
+      alert('Upload failed. Make sure the file is a valid .docx')
+    }
+    setUploadingTemplate(false)
+    e.target.value = ''
+  }
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!window.confirm('Delete this template?')) return
+    try {
+      await apiClient.delete(`/documents/templates/${templateId}`)
+      load()
+    } catch {}
   }
 
   const handleSave = async () => {
     if (!selectedBooking) return
     setSaving(true)
     try {
-      await apiClient.post('/documents/generate', { booking_id: selectedBooking.id, doc_type: selectedDocType, content: docContent })
+      await apiClient.post('/documents/generate', {
+        booking_id: selectedBooking.id,
+        doc_type: selectedDocType,
+        content: docContent,
+      })
       setShowGenModal(false)
       load()
     } catch {}
+    setSaving(false)
+  }
+
+  const handleGenerateFromTemplate = async () => {
+    if (!selectedBooking || !selectedTemplate) return
+    setSaving(true)
+    try {
+      const response = await apiClient.post(
+        `/documents/templates/${selectedTemplate.id}/generate`,
+        templateValues,
+        {
+          params: { booking_id: selectedBooking.id },
+          responseType: 'blob',
+        }
+      )
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `${selectedTemplate.name}_${selectedBooking.doctor_name}.docx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setShowGenModal(false)
+      load()
+    } catch {
+      alert('Error generating document. Please try again.')
+    }
     setSaving(false)
   }
 
@@ -204,7 +342,8 @@ export default function DocumentsPage() {
     if (!printContent) return
     const win = window.open('', '_blank')
     if (!win) return
-    win.document.write(`<html><head><title>${DOC_TYPE_MAP[viewDoc?.doc_type ?? selectedDocType]}</title><style>body{font-family:'DM Sans',sans-serif;padding:40px;font-size:13px;line-height:1.8;color:#111}strong{font-weight:600}</style></head><body>${printContent}</body></html>`)
+    const title = DOC_TYPE_MAP[viewDoc?.doc_type ?? selectedDocType] ?? 'Document'
+    win.document.write(`<html><head><title>${title}</title><style>body{font-family:'DM Sans',sans-serif;padding:40px;font-size:13px;line-height:1.8;color:#111}strong{font-weight:600}</style></head><body>${printContent}</body></html>`)
     win.document.close()
     win.print()
   }
@@ -222,11 +361,17 @@ export default function DocumentsPage() {
     setSaving(false)
   }
 
-  const getPatientName = (bookingId: string) => bookings.find(x => x.id === bookingId)?.doctor_name ?? 'Unknown'
+  const getPatientName = (bookingId: string) => patientMap[bookingId] ?? 'Unknown'
+
+  const getDocLabel = (doc: Document) => {
+    if (doc.content?._template_name) return doc.content._template_name
+    return DOC_TYPE_MAP[doc.doc_type] ?? doc.doc_type
+  }
 
   const filtered = documents.filter(d => {
     const q = search.toLowerCase()
-    return getPatientName(d.booking_id).toLowerCase().includes(q) && (typeFilter === 'all' || d.doc_type === typeFilter)
+    return getPatientName(d.booking_id).toLowerCase().includes(q) &&
+      (typeFilter === 'all' || d.doc_type === typeFilter || (typeFilter === 'custom' && d.doc_type.startsWith('template_')))
   })
 
   const tableHeaderBg = colors.bgBase === '#F0F7F5' ? '#D4E8E3' : '#0A1A17'
@@ -235,7 +380,7 @@ export default function DocumentsPage() {
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: colors.bgBase }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Header */}
+        {/* ── HEADER ── */}
         <div style={{ padding: '24px 32px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <div style={{ width: 4, height: 22, backgroundColor: colors.primary, borderRadius: 2 }} />
@@ -253,7 +398,11 @@ export default function DocumentsPage() {
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by patient name..." style={{ width: '100%', paddingLeft: 36, paddingRight: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              {[{ key: 'all', label: 'All types' }, ...DOC_TYPES.map(d => ({ key: d.key, label: d.label }))].map(f => (
+              {[
+                { key: 'all', label: 'All types' },
+                ...BUILT_IN_DOC_TYPES.map(d => ({ key: d.key, label: d.label })),
+                ...(templates.length > 0 ? [{ key: 'custom', label: 'Templates' }] : []),
+              ].map(f => (
                 <button key={f.key} onClick={() => setTypeFilter(f.key)} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${typeFilter === f.key ? colors.primary : colors.border}`, backgroundColor: typeFilter === f.key ? colors.primaryBg : colors.bgSurface, color: typeFilter === f.key ? colors.primary : colors.textMuted, fontSize: 12, fontWeight: typeFilter === f.key ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   {f.label}
                 </button>
@@ -270,7 +419,7 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* ── TABLE ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 32px 32px' }}>
           <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 100px', backgroundColor: tableHeaderBg, padding: '12px 20px', gap: 16 }}>
@@ -297,7 +446,7 @@ export default function DocumentsPage() {
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>{getPatientName(doc.booking_id)}</span>
                   </div>
-                  <span style={{ fontSize: 13, color: colors.textMuted }}>{DOC_TYPE_MAP[doc.doc_type] ?? doc.doc_type}</span>
+                  <span style={{ fontSize: 13, color: colors.textMuted }}>{getDocLabel(doc)}</span>
                   <span style={{ fontSize: 12, color: colors.textFaint }}>{doc.created_at ? new Date(doc.created_at).toLocaleDateString('en-ZA') : '—'}</span>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => openView(doc)} title="View" style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, cursor: 'pointer', color: colors.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -314,10 +463,12 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      {/* Generate modal */}
+      {/* ── GENERATE MODAL ── */}
       {showGenModal && selectedBooking && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
-          <div style={{ backgroundColor: colors.bgSurface, borderRadius: 16, border: `1px solid ${colors.border}`, width: '100%', maxWidth: 900, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ backgroundColor: colors.bgSurface, borderRadius: 16, border: `1px solid ${colors.border}`, width: '100%', maxWidth: 940, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+            {/* Modal header */}
             <div style={{ padding: '18px 24px', borderBottom: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text }}>Generate document</div>
@@ -331,59 +482,168 @@ export default function DocumentsPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setPreviewMode(!previewMode)} style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${previewMode ? colors.primary : colors.border}`, backgroundColor: previewMode ? colors.primaryBg : colors.bgElevated, color: previewMode ? colors.primary : colors.textMuted, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Ico i={HiOutlineEye} size={14} />
-                  {previewMode ? 'Edit' : 'Preview'}
-                </button>
+                {!selectedTemplate && (
+                  <button onClick={() => setPreviewMode(!previewMode)} style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${previewMode ? colors.primary : colors.border}`, backgroundColor: previewMode ? colors.primaryBg : colors.bgElevated, color: previewMode ? colors.primary : colors.textMuted, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Ico i={HiOutlineEye} size={14} />
+                    {previewMode ? 'Edit' : 'Preview'}
+                  </button>
+                )}
                 <button onClick={() => setShowGenModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, display: 'flex' }}>
                   <Ico i={HiOutlineX} size={18} />
                 </button>
               </div>
             </div>
+
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-              <div style={{ width: 200, borderRight: `1px solid ${colors.border}`, padding: '16px 0', flexShrink: 0, overflowY: 'auto', backgroundColor: colors.bgSurface }}>
-                {DOC_TYPES.map(dt => (
-                  <button key={dt.key} onClick={() => handleDocTypeChange(dt.key)} style={{ width: '100%', padding: '12px 16px', border: 'none', borderLeft: `3px solid ${selectedDocType === dt.key ? colors.primary : 'transparent'}`, backgroundColor: selectedDocType === dt.key ? colors.primaryBg : 'transparent', textAlign: 'left', cursor: 'pointer' }}>
-                    <div style={{ fontSize: 13, fontWeight: selectedDocType === dt.key ? 600 : 400, color: selectedDocType === dt.key ? colors.primary : colors.text }}>{dt.label}</div>
-                    <div style={{ fontSize: 11, color: colors.textFaint, marginTop: 2 }}>{dt.desc}</div>
+
+              {/* ── LEFT SIDEBAR — doc type + templates ── */}
+              <div style={{ width: 210, borderRight: `1px solid ${colors.border}`, padding: '12px 0', flexShrink: 0, overflowY: 'auto', backgroundColor: colors.bgSurface }}>
+
+                {/* Built-in types */}
+                <div style={{ fontSize: 10, color: colors.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '4px 16px 8px' }}>Standard</div>
+                {BUILT_IN_DOC_TYPES.map(dt => {
+                  const isActive = selectedDocType === dt.key && !selectedTemplate
+                  return (
+                    <button key={dt.key} onClick={() => handleDocTypeChange(dt.key)} style={{ width: '100%', padding: '10px 16px', border: 'none', borderLeft: `3px solid ${isActive ? colors.primary : 'transparent'}`, backgroundColor: isActive ? colors.primaryBg : 'transparent', textAlign: 'left', cursor: 'pointer' }}>
+                      <div style={{ fontSize: 13, fontWeight: isActive ? 600 : 400, color: isActive ? colors.primary : colors.text }}>{dt.label}</div>
+                      <div style={{ fontSize: 11, color: colors.textFaint, marginTop: 1 }}>{dt.desc}</div>
+                    </button>
+                  )
+                })}
+
+                {/* Starter templates download */}
+                <div style={{ fontSize: 10, color: colors.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '12px 16px 6px', borderTop: `1px solid ${colors.border}`, marginTop: 8 }}>
+                  Download starters
+                </div>
+                {[
+                  { key: 'sick_letter',         label: 'Sick Letter' },
+                  { key: 'medical_certificate', label: 'Medical Certificate' },
+                  { key: 'referral_letter',     label: 'Referral Letter' },
+                  { key: 'visit_summary',       label: 'Visit Summary' },
+                ].map(dt => (
+                  <button
+                    key={dt.key}
+                    onClick={async () => {
+                      const res = await apiClient.get(`/documents/templates/starter/${dt.key}`, { responseType: 'blob' })
+                      const url = window.URL.createObjectURL(new Blob([res.data]))
+                      const link = document.createElement('a')
+                      link.href = url
+                      link.setAttribute('download', `${dt.label}_Starter.docx`)
+                      document.body.appendChild(link)
+                      link.click()
+                      link.remove()
+                    }}
+                    style={{ width: '100%', padding: '8px 16px', border: 'none', borderLeft: '3px solid transparent', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <Ico i={HiOutlineDownload} size={13} style={{ color: colors.textFaint }} />
+                    <span style={{ fontSize: 12, color: colors.textMuted }}>{dt.label}</span>
                   </button>
                 ))}
+
+                {/* My Templates */}
+                {templates.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, color: colors.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '12px 16px 6px', borderTop: `1px solid ${colors.border}`, marginTop: 8 }}>
+                      My templates
+                    </div>
+                    {templates.map(t => {
+                      const isActive = selectedTemplate?.id === t.id
+                      return (
+                        <div key={t.id} style={{ display: 'flex', alignItems: 'center' }}>
+                          <button onClick={() => handleTemplateSelect(t)} style={{ flex: 1, padding: '10px 16px', border: 'none', borderLeft: `3px solid ${isActive ? colors.primary : 'transparent'}`, backgroundColor: isActive ? colors.primaryBg : 'transparent', textAlign: 'left', cursor: 'pointer' }}>
+                            <div style={{ fontSize: 13, fontWeight: isActive ? 600 : 400, color: isActive ? colors.primary : colors.text }}>{t.name}</div>
+                            <div style={{ fontSize: 11, color: colors.textFaint, marginTop: 1 }}>{t.placeholders.length} fields</div>
+                          </button>
+                          <button onClick={() => handleDeleteTemplate(t.id)} style={{ width: 28, height: 28, borderRadius: 6, border: 'none', backgroundColor: 'transparent', cursor: 'pointer', color: colors.textFaint, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0 }}>
+                            <Ico i={HiOutlineTrash} size={13} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
+
+                {/* Upload template */}
+                <div style={{ padding: '12px 16px', borderTop: `1px solid ${colors.border}`, marginTop: 8 }}>
+                  <label style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px dashed ${colors.border}`, backgroundColor: 'transparent', color: uploadingTemplate ? colors.textFaint : colors.textMuted, fontSize: 12, cursor: uploadingTemplate ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                    <Ico i={HiOutlinePlus} size={13} />
+                    {uploadingTemplate ? 'Uploading...' : 'Upload .docx'}
+                    <input type="file" accept=".docx" style={{ display: 'none' }} onChange={handleTemplateUpload} disabled={uploadingTemplate} />
+                  </label>
+                  <div style={{ fontSize: 10, color: colors.textFaint, textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
+                    Use {`{{placeholder}}`} in your Word doc
+                  </div>
+                </div>
               </div>
+
+              {/* ── RIGHT — Form or template fields ── */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', backgroundColor: colors.bgBase }}>
-                {previewMode
-                  ? <div id="doc-preview"><DocumentPreview docType={selectedDocType} content={docContent} doctorName={doctorName} practiceName={practiceName} /></div>
-                  : <DocumentForm docType={selectedDocType} content={docContent} onChange={(k, v) => setDocContent((p: any) => ({ ...p, [k]: v }))} colors={colors} />
-                }
+
+                {selectedTemplate ? (
+                  /* Template placeholder fields */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ backgroundColor: colors.primaryBg, borderRadius: 8, padding: '10px 14px', fontSize: 12, color: colors.primary, border: `1px solid ${colors.primaryBorder}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Ico i={RiRobot2Line} size={14} />
+                      {selectedTemplate.name} · {selectedTemplate.placeholders.length} fields detected · Pre-filled from intake where possible
+                    </div>
+                    {selectedTemplate.placeholders.map(key => (
+                      <FieldGroup
+                        key={key}
+                        label={key.replace(/_/g, ' ')}
+                        value={templateValues[key] ?? ''}
+                        onChange={v => setTemplateValues(prev => ({ ...prev, [key]: v }))}
+                        multiline={key.toLowerCase().includes('note') || key.toLowerCase().includes('reason') || key.toLowerCase().includes('history') || key.toLowerCase().includes('concern')}
+                        placeholder={`Enter ${key.replace(/_/g, ' ')}`}
+                        colors={colors}
+                      />
+                    ))}
+                  </div>
+                ) : previewMode ? (
+                  <div id="doc-preview">
+                    <DocumentPreview docType={selectedDocType} content={docContent} doctorName={doctorName} practiceName={practiceName} />
+                  </div>
+                ) : (
+                  <DocumentForm docType={selectedDocType} content={docContent} onChange={(k, v) => setDocContent((p: any) => ({ ...p, [k]: v }))} colors={colors} />
+                )}
               </div>
             </div>
+
+            {/* Footer */}
             <div style={{ padding: '16px 24px', borderTop: `1px solid ${colors.border}`, display: 'flex', gap: 10, flexShrink: 0, backgroundColor: colors.bgSurface }}>
               <button onClick={() => setShowGenModal(false)} style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              {previewMode && (
+              {!selectedTemplate && previewMode && (
                 <button onClick={handlePrint} style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Ico i={HiOutlineDownload} size={15} />Print / Save PDF
                 </button>
               )}
-              <button onClick={handleSave} disabled={saving} style={{ marginLeft: 'auto', padding: '10px 24px', borderRadius: 8, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: saving ? 0.7 : 1 }}>
-                <Ico i={HiOutlineCheck} size={15} />{saving ? 'Saving...' : 'Save document'}
+              <button
+                onClick={selectedTemplate ? handleGenerateFromTemplate : handleSave}
+                disabled={saving}
+                style={{ marginLeft: 'auto', padding: '10px 24px', borderRadius: 8, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: saving ? 0.7 : 1 }}
+              >
+                <Ico i={selectedTemplate ? HiOutlineDownload : HiOutlineCheck} size={15} />
+                {saving ? 'Generating...' : selectedTemplate ? 'Generate & download .docx' : 'Save document'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* View/edit modal */}
+      {/* ── VIEW / EDIT MODAL ── */}
       {viewDoc && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
           <div style={{ backgroundColor: colors.bgSurface, borderRadius: 16, border: `1px solid ${colors.border}`, width: '100%', maxWidth: 780, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '18px 24px', borderBottom: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text }}>{DOC_TYPE_MAP[viewDoc.doc_type]} — {getPatientName(viewDoc.booking_id)}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text }}>{getDocLabel(viewDoc)} — {getPatientName(viewDoc.booking_id)}</div>
                 <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>Created {new Date(viewDoc.created_at).toLocaleDateString('en-ZA')}</div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setEditingDoc(!editingDoc)} style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${editingDoc ? colors.primary : colors.border}`, backgroundColor: editingDoc ? colors.primaryBg : colors.bgElevated, color: editingDoc ? colors.primary : colors.textMuted, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Ico i={HiOutlinePencil} size={14} />{editingDoc ? 'Preview' : 'Edit'}
-                </button>
+                {!viewDoc.doc_type.startsWith('template_') && (
+                  <button onClick={() => setEditingDoc(!editingDoc)} style={{ height: 34, padding: '0 14px', borderRadius: 8, border: `1px solid ${editingDoc ? colors.primary : colors.border}`, backgroundColor: editingDoc ? colors.primaryBg : colors.bgElevated, color: editingDoc ? colors.primary : colors.textMuted, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Ico i={HiOutlinePencil} size={14} />{editingDoc ? 'Preview' : 'Edit'}
+                  </button>
+                )}
                 <button onClick={() => setViewDoc(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, display: 'flex' }}>
                   <Ico i={HiOutlineX} size={18} />
                 </button>
@@ -392,12 +652,26 @@ export default function DocumentsPage() {
             <div style={{ flex: 1, overflowY: 'auto', padding: '24px', backgroundColor: colors.bgBase }}>
               {editingDoc
                 ? <DocumentForm docType={viewDoc.doc_type} content={editContent} onChange={(k, v) => setEditContent((p: any) => ({ ...p, [k]: v }))} colors={colors} />
-                : <div id="doc-preview"><DocumentPreview docType={viewDoc.doc_type} content={viewDoc.content} doctorName={doctorName} practiceName={practiceName} /></div>
+                : viewDoc.doc_type.startsWith('template_') ? (
+                  <div style={{ backgroundColor: colors.bgSurface, borderRadius: 10, padding: '24px', border: `1px solid ${colors.border}` }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 16 }}>{viewDoc.content._template_name}</div>
+                    {Object.entries(viewDoc.content).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
+                      <div key={k} style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, color: colors.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>{k.replace(/_/g, ' ')}</div>
+                        <div style={{ fontSize: 13, color: colors.text }}>{String(v)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div id="doc-preview">
+                    <DocumentPreview docType={viewDoc.doc_type} content={viewDoc.content} doctorName={doctorName} practiceName={practiceName} />
+                  </div>
+                )
               }
             </div>
             <div style={{ padding: '16px 24px', borderTop: `1px solid ${colors.border}`, display: 'flex', gap: 10, flexShrink: 0, backgroundColor: colors.bgSurface }}>
               <button onClick={() => setViewDoc(null)} style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 13, cursor: 'pointer' }}>Close</button>
-              {!editingDoc && (
+              {!editingDoc && !viewDoc.doc_type.startsWith('template_') && (
                 <button onClick={handlePrint} style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Ico i={HiOutlineDownload} size={15} />Print / Save PDF
                 </button>
