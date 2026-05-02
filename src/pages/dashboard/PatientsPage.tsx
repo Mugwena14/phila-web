@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { colors } from '../../theme/colors'
+import { useTheme } from '../../context/ThemeContext'
 import apiClient from '../../api/client'
 import {
   HiOutlineUsers,
@@ -12,7 +12,6 @@ import {
   HiOutlineDocumentText,
   HiOutlineChip,
   HiOutlineRefresh,
-  HiOutlineUser,
 } from 'react-icons/hi'
 import { RiWalkLine } from 'react-icons/ri'
 
@@ -54,36 +53,14 @@ interface Medication {
   last_prescribed_date: string | null
 }
 
-function getRiskColor(score: string) {
-  const n = parseInt(score || '0')
-  if (n < 30) return { color: colors.primary, bg: colors.primaryBg, border: colors.primaryBorder, label: 'Low' }
-  if (n < 65) return { color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)', label: 'Medium' }
-  return { color: colors.coral, bg: colors.coralBg, border: colors.coralBorder, label: 'High' }
-}
-
-function StatusPill({ status }: { status: string }) {
-  const map: Record<string, { color: string; bg: string; label: string }> = {
-    confirmed: { color: colors.primary, bg: colors.primaryBg, label: 'Confirmed' },
-    arrived: { color: '#0284C7', bg: '#E0F2FE', label: 'Arrived' },
-    in_consultation: { color: '#7C3AED', bg: '#EDE9FE', label: 'In consult' },
-    completed: { color: '#059669', bg: '#D1FAE5', label: 'Completed' },
-    no_show: { color: colors.coral, bg: colors.coralBg, label: 'No-show' },
-    cancelled: { color: colors.textMuted, bg: colors.bgElevated, label: 'Cancelled' },
-  }
-  const s = map[status] ?? { color: colors.textMuted, bg: colors.bgElevated, label: status }
-  return (
-    <span style={{ fontSize: 10, fontWeight: 600, color: s.color, backgroundColor: s.bg, borderRadius: 999, padding: '2px 8px', textTransform: 'uppercase' }}>
-      {s.label}
-    </span>
-  )
-}
-
 export default function PatientsPage() {
-  const [patients, setPatients] = useState<Patient[]>([])
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const { colors } = useTheme()
+
+  const [patients, setPatients]   = useState<Patient[]>([])
+  const [bookings, setBookings]   = useState<Booking[]>([])
   const [medications, setMedications] = useState<Medication[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [activeTab, setActiveTab] = useState<'history' | 'medications' | 'documents'>('history')
 
@@ -131,34 +108,53 @@ export default function PatientsPage() {
 
   const getPatientStats = (patientId: string) => {
     const pb = getPatientBookings(patientId)
-    const noShows = pb.filter(b => b.status === 'no_show').length
+    const noShows  = pb.filter(b => b.status === 'no_show').length
     const completed = pb.filter(b => b.status === 'completed').length
     const lastVisit = pb.find(b => b.slot_date)?.slot_date ?? null
-    const maxRisk = pb.reduce((max, b) => Math.max(max, parseInt(b.risk_score || '0')), 0)
+    const maxRisk   = pb.reduce((max, b) => Math.max(max, parseInt(b.risk_score || '0')), 0)
     const hasCrisis = pb.some(b => b.crisis_flag)
     return { total: pb.length, noShows, completed, lastVisit, maxRisk, hasCrisis }
   }
 
+  const getRiskColor = (score: string) => {
+    const n = parseInt(score || '0')
+    if (n < 30) return { color: colors.primary, bg: colors.primaryBg, border: colors.primaryBorder, label: 'Low' }
+    if (n < 65) return { color: '#D97706', bg: 'rgba(217,119,6,0.08)', border: 'rgba(217,119,6,0.25)', label: 'Medium' }
+    return { color: '#DC2626', bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.2)', label: 'High' }
+  }
+
+  const getStatusStyle = (status: string) => {
+    const map: Record<string, { color: string; bg: string }> = {
+      confirmed:       { color: colors.primary,  bg: colors.primaryBg },
+      arrived:         { color: '#0284C7',        bg: '#E0F2FE' },
+      in_consultation: { color: '#7C3AED',        bg: '#EDE9FE' },
+      completed:       { color: '#059669',        bg: '#D1FAE5' },
+      no_show:         { color: '#DC2626',        bg: 'rgba(220,38,38,0.08)' },
+      cancelled:       { color: colors.textMuted, bg: colors.bgElevated },
+    }
+    return map[status] ?? { color: colors.textMuted, bg: colors.bgElevated }
+  }
+
+  const tableHeaderBg = colors.bgBase === '#F0F7F5' ? '#D4E8E3' : '#0A1A17'
+
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: colors.bgBase }}>
 
       {/* ── LEFT — PATIENT LIST ── */}
-      <div style={{ width: selectedPatient ? 420 : '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: selectedPatient ? `1px solid ${colors.border}` : 'none', overflow: 'hidden', transition: 'width 0.2s ease' }}>
+      <div style={{ width: selectedPatient ? 420 : '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: selectedPatient ? `1px solid ${colors.border}` : 'none', overflow: 'hidden', transition: 'width 0.2s ease', backgroundColor: colors.bgBase }}>
 
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <Ico i={HiOutlineUsers} size={20} style={{ color: colors.primary }} />
+            <div style={{ width: 4, height: 22, backgroundColor: colors.primary, borderRadius: 2 }} />
             <h1 style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0 }}>Patients</h1>
             <span style={{ fontSize: 12, color: colors.textMuted, backgroundColor: colors.bgElevated, borderRadius: 999, padding: '3px 10px', border: `1px solid ${colors.border}` }}>
               {patients.length} total
             </span>
-            <button onClick={loadData} style={{ marginLeft: 'auto', background: 'none', border: `1px solid ${colors.border}`, borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: colors.textMuted, display: 'flex' }}>
+            <button onClick={loadData} style={{ marginLeft: 'auto', backgroundColor: colors.bgSurface, border: `1px solid ${colors.border}`, borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: colors.textMuted, display: 'flex' }}>
               <Ico i={HiOutlineRefresh} size={15} />
             </button>
           </div>
-
-          {/* Search */}
           <div style={{ position: 'relative' }}>
             <Ico i={HiOutlineSearch} size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: colors.textFaint }} />
             <input
@@ -176,9 +172,9 @@ export default function PatientsPage() {
         </div>
 
         {/* Table header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 80px', gap: 0, padding: '10px 24px', borderBottom: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, flexShrink: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 80px', padding: '10px 24px', borderBottom: `1px solid ${colors.border}`, backgroundColor: tableHeaderBg, flexShrink: 0 }}>
           {['Patient', 'Visits', 'Last visit', 'Risk'].map(h => (
-            <span key={h} style={{ fontSize: 11, fontWeight: 500, color: colors.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+            <span key={h} style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
           ))}
         </div>
 
@@ -189,15 +185,11 @@ export default function PatientsPage() {
           ) : filtered.length === 0 ? (
             <div style={{ padding: 48, textAlign: 'center' }}>
               <Ico i={HiOutlineUsers} size={36} style={{ color: colors.textFaint, marginBottom: 12, justifyContent: 'center' }} />
-              <div style={{ fontSize: 14, fontWeight: 500, color: colors.text, marginBottom: 4 }}>
-                {search ? 'No patients found' : 'No patients yet'}
-              </div>
-              <div style={{ fontSize: 13, color: colors.textMuted }}>
-                {search ? 'Try a different name or phone number' : 'Patients appear here after their first booking'}
-              </div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: colors.text, marginBottom: 4 }}>{search ? 'No patients found' : 'No patients yet'}</div>
+              <div style={{ fontSize: 13, color: colors.textMuted }}>{search ? 'Try a different name or phone number' : 'Patients appear here after their first booking'}</div>
             </div>
           ) : (
-            filtered.map((patient, i) => {
+            filtered.map((patient) => {
               const stats = getPatientStats(patient.id)
               const risk = getRiskColor(String(stats.maxRisk))
               const isSelected = selectedPatient?.id === patient.id
@@ -206,56 +198,38 @@ export default function PatientsPage() {
                 <div
                   key={patient.id}
                   onClick={() => handleSelectPatient(patient)}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '2fr 1fr 1fr 80px',
-                    gap: 0,
-                    padding: '14px 24px',
-                    borderBottom: `1px solid ${colors.border}`,
-                    cursor: 'pointer',
-                    backgroundColor: isSelected ? colors.primaryBg : 'transparent',
-                    borderRight: isSelected ? `3px solid ${colors.primary}` : '3px solid transparent',
-                    transition: 'all 0.15s',
-                  }}
+                  style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 80px', padding: '14px 24px', borderBottom: `1px solid ${colors.border}`, cursor: 'pointer', backgroundColor: isSelected ? colors.primaryBg : 'transparent', borderLeft: `3px solid ${isSelected ? colors.primary : 'transparent'}`, transition: 'all 0.15s' }}
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = colors.bgElevated }}
+                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent' }}
                 >
-                  {/* Patient name + badges */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isSelected ? colors.primary : colors.bgElevated, border: `1px solid ${isSelected ? colors.primary : colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: isSelected ? '#FFFFFF' : colors.textMuted, flexShrink: 0, fontFamily: 'Syne, sans-serif' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isSelected ? colors.primary : colors.bgElevated, border: `1px solid ${isSelected ? colors.primary : colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: isSelected ? '#FFFFFF' : colors.primary, flexShrink: 0 }}>
                       {patient.full_name.charAt(0).toUpperCase()}
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 500, color: colors.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{patient.full_name}</span>
                         {patient.is_walk_in && !patient.claimed && (
-                          <span style={{ fontSize: 9, fontWeight: 600, color: '#60A5FA', backgroundColor: 'rgba(59,130,246,0.1)', borderRadius: 999, padding: '1px 6px', border: '1px solid rgba(59,130,246,0.25)', whiteSpace: 'nowrap' }}>WALK-IN</span>
+                          <span style={{ fontSize: 9, fontWeight: 600, color: '#2563EB', backgroundColor: 'rgba(37,99,235,0.1)', borderRadius: 999, padding: '1px 6px', border: '1px solid rgba(37,99,235,0.25)', whiteSpace: 'nowrap' }}>WALK-IN</span>
                         )}
-                        {stats.hasCrisis && (
-                          <Ico i={HiOutlineExclamation} size={13} style={{ color: colors.coral }} />
-                        )}
+                        {stats.hasCrisis && <Ico i={HiOutlineExclamation} size={13} style={{ color: '#DC2626' }} />}
                       </div>
                       <span style={{ fontSize: 11, color: colors.textFaint }}>{patient.phone.startsWith('WALKIN_') ? patient.phone.replace('WALKIN_', '') : patient.phone}</span>
                     </div>
                   </div>
 
-                  {/* Visit count */}
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span style={{ fontSize: 13, color: colors.text, fontWeight: 500 }}>{stats.total}</span>
-                    {stats.noShows > 0 && (
-                      <span style={{ fontSize: 11, color: colors.coral, marginLeft: 6 }}>({stats.noShows} no-show{stats.noShows > 1 ? 's' : ''})</span>
-                    )}
+                    {stats.noShows > 0 && <span style={{ fontSize: 11, color: '#DC2626', marginLeft: 6 }}>({stats.noShows} no-show{stats.noShows > 1 ? 's' : ''})</span>}
                   </div>
 
-                  {/* Last visit */}
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: colors.textMuted }}>{stats.lastVisit ?? 'Never'}</span>
                   </div>
 
-                  {/* Risk badge */}
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     {stats.total > 0 ? (
-                      <span style={{ fontSize: 11, fontWeight: 600, color: risk.color, backgroundColor: risk.bg, borderRadius: 999, padding: '2px 8px', border: `1px solid ${risk.border}` }}>
-                        {risk.label}
-                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: risk.color, backgroundColor: risk.bg, borderRadius: 999, padding: '2px 8px', border: `1px solid ${risk.border}` }}>{risk.label}</span>
                     ) : (
                       <span style={{ fontSize: 11, color: colors.textFaint }}>—</span>
                     )}
@@ -274,7 +248,7 @@ export default function PatientsPage() {
         const risk = getRiskColor(String(stats.maxRisk))
 
         return (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, backgroundColor: colors.bgBase }}>
 
             {/* Detail header */}
             <div style={{ padding: '20px 24px', borderBottom: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, flexShrink: 0 }}>
@@ -287,21 +261,18 @@ export default function PatientsPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 18, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text }}>{selectedPatient.full_name}</span>
                       {selectedPatient.is_walk_in && !selectedPatient.claimed && (
-                        <span style={{ fontSize: 10, fontWeight: 600, color: '#60A5FA', backgroundColor: 'rgba(59,130,246,0.1)', borderRadius: 999, padding: '2px 8px', border: '1px solid rgba(59,130,246,0.25)' }}>WALK-IN</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#2563EB', backgroundColor: 'rgba(37,99,235,0.1)', borderRadius: 999, padding: '2px 8px', border: '1px solid rgba(37,99,235,0.25)' }}>WALK-IN</span>
                       )}
                       {stats.hasCrisis && (
-                        <span style={{ fontSize: 10, fontWeight: 600, color: colors.coral, backgroundColor: colors.coralBg, borderRadius: 999, padding: '2px 8px', border: `1px solid ${colors.coralBorder}`, display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <Ico i={HiOutlineExclamation} size={10} />
-                          Crisis on record
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#DC2626', backgroundColor: 'rgba(220,38,38,0.08)', borderRadius: 999, padding: '2px 8px', border: '1px solid rgba(220,38,38,0.2)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <Ico i={HiOutlineExclamation} size={10} />Crisis on record
                         </span>
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <Ico i={HiOutlinePhone} size={13} style={{ color: colors.textFaint }} />
-                        <span style={{ fontSize: 13, color: colors.textMuted }}>
-                          {selectedPatient.phone.startsWith('WALKIN_') ? selectedPatient.phone.replace('WALKIN_', '') : selectedPatient.phone}
-                        </span>
+                        <span style={{ fontSize: 13, color: colors.textMuted }}>{selectedPatient.phone.startsWith('WALKIN_') ? selectedPatient.phone.replace('WALKIN_', '') : selectedPatient.phone}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <Ico i={HiOutlineCalendar} size={13} style={{ color: colors.textFaint }} />
@@ -317,10 +288,10 @@ export default function PatientsPage() {
 
               {/* Walk-in claim code */}
               {selectedPatient.is_walk_in && !selectedPatient.claimed && selectedPatient.claim_code && (
-                <div style={{ marginTop: 14, backgroundColor: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Ico i={RiWalkLine} size={16} style={{ color: '#60A5FA' }} />
+                <div style={{ marginTop: 14, backgroundColor: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.2)', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Ico i={RiWalkLine} size={16} style={{ color: '#2563EB' }} />
                   <div>
-                    <div style={{ fontSize: 12, color: '#60A5FA', fontWeight: 500, marginBottom: 2 }}>Walk-in patient — not yet on the app</div>
+                    <div style={{ fontSize: 12, color: '#2563EB', fontWeight: 500, marginBottom: 2 }}>Walk-in patient — not yet on the app</div>
                     <div style={{ fontSize: 12, color: colors.textMuted }}>Claim code: <strong style={{ color: colors.text, fontFamily: 'JetBrains Mono, monospace' }}>{selectedPatient.claim_code}</strong> — share this so they can claim their history when they register</div>
                   </div>
                 </div>
@@ -329,31 +300,27 @@ export default function PatientsPage() {
               {/* Stats row */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 16 }}>
                 {[
-                  { label: 'Total visits', value: stats.total },
-                  { label: 'Completed', value: stats.completed },
-                  { label: 'No-shows', value: stats.noShows },
-                  { label: 'Risk level', value: risk.label, color: risk.color },
+                  { label: 'Total visits', value: stats.total, color: colors.text },
+                  { label: 'Completed',    value: stats.completed, color: colors.text },
+                  { label: 'No-shows',     value: stats.noShows, color: stats.noShows > 0 ? '#DC2626' : colors.text },
+                  { label: 'Risk level',   value: risk.label, color: risk.color },
                 ].map(s => (
                   <div key={s.label} style={{ backgroundColor: colors.bgElevated, borderRadius: 8, padding: '10px 14px', border: `1px solid ${colors.border}` }}>
                     <div style={{ fontSize: 11, color: colors.textFaint, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: s.color ?? colors.text }}>{s.value}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: s.color }}>{s.value}</div>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, flexShrink: 0 }}>
+            <div style={{ display: 'flex', borderBottom: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, flexShrink: 0 }}>
               {([
-                { key: 'history', label: 'Visit history', icon: HiOutlineCalendar },
-                { key: 'medications', label: 'Medications', icon: HiOutlineChip },
-                { key: 'documents', label: 'Documents', icon: HiOutlineDocumentText },
+                { key: 'history',     label: 'Visit history', icon: HiOutlineCalendar },
+                { key: 'medications', label: 'Medications',   icon: HiOutlineChip },
+                { key: 'documents',   label: 'Documents',     icon: HiOutlineDocumentText },
               ] as const).map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '12px 20px', background: 'none', border: 'none', borderBottom: activeTab === tab.key ? `2px solid ${colors.primary}` : '2px solid transparent', cursor: 'pointer', color: activeTab === tab.key ? colors.primary : colors.textMuted, fontSize: 13, fontWeight: activeTab === tab.key ? 500 : 400, transition: 'all 0.15s' }}
-                >
+                <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '12px 20px', background: 'none', border: 'none', borderBottom: activeTab === tab.key ? `2px solid ${colors.primary}` : '2px solid transparent', cursor: 'pointer', color: activeTab === tab.key ? colors.primary : colors.textMuted, fontSize: 13, fontWeight: activeTab === tab.key ? 600 : 400, transition: 'all 0.15s' }}>
                   <Ico i={tab.icon} size={15} />
                   {tab.label}
                 </button>
@@ -367,68 +334,54 @@ export default function PatientsPage() {
               {activeTab === 'history' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {patientBookings.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px 0', color: colors.textMuted }}>
+                    <div style={{ textAlign: 'center', padding: '40px 0' }}>
                       <Ico i={HiOutlineCalendar} size={32} style={{ color: colors.textFaint, marginBottom: 10, justifyContent: 'center' }} />
                       <div style={{ fontSize: 14, color: colors.text, fontWeight: 500, marginBottom: 4 }}>No visits yet</div>
-                      <div style={{ fontSize: 13 }}>Bookings will appear here after the patient's first appointment</div>
+                      <div style={{ fontSize: 13, color: colors.textMuted }}>Bookings will appear here after the patient's first appointment</div>
                     </div>
                   ) : (
-                    patientBookings.map(b => (
-                      <div key={b.id} style={{ backgroundColor: colors.bgSurface, borderRadius: 10, border: `1px solid ${colors.border}`, padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                              <Ico i={HiOutlineCalendar} size={13} style={{ color: colors.textFaint }} />
-                              <span style={{ fontSize: 13, fontWeight: 500, color: colors.text }}>{b.slot_date ?? 'Unknown date'}</span>
-                              {b.slot_start_time && (
-                                <span style={{ fontSize: 12, color: colors.textMuted }}>at {b.slot_start_time.slice(0, 5)}</span>
-                              )}
+                    patientBookings.map(b => {
+                      const ss = getStatusStyle(b.status)
+                      return (
+                        <div key={b.id} style={{ backgroundColor: colors.bgSurface, borderRadius: 10, border: `1px solid ${colors.border}`, padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <Ico i={HiOutlineCalendar} size={13} style={{ color: colors.textFaint }} />
+                                <span style={{ fontSize: 13, fontWeight: 500, color: colors.text }}>{b.slot_date ?? 'Unknown date'}</span>
+                                {b.slot_start_time && <span style={{ fontSize: 12, color: colors.textMuted }}>at {b.slot_start_time.slice(0, 5)}</span>}
+                              </div>
+                              {b.reason && <div style={{ fontSize: 12, color: colors.textMuted, marginLeft: 21 }}>{b.reason}</div>}
                             </div>
-                            {b.reason && (
-                              <div style={{ fontSize: 12, color: colors.textMuted, marginLeft: 21 }}>{b.reason}</div>
-                            )}
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                              {b.crisis_flag && <Ico i={HiOutlineExclamation} size={14} style={{ color: '#DC2626' }} />}
+                              {b.is_walk_in && <span style={{ fontSize: 9, fontWeight: 600, color: '#2563EB', backgroundColor: 'rgba(37,99,235,0.1)', borderRadius: 999, padding: '1px 6px' }}>WALK-IN</span>}
+                              <span style={{ fontSize: 10, fontWeight: 600, color: ss.color, backgroundColor: ss.bg, borderRadius: 999, padding: '2px 8px', textTransform: 'uppercase' }}>
+                                {b.status.replace('_', ' ')}
+                              </span>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                            {b.crisis_flag && <Ico i={HiOutlineExclamation} size={14} style={{ color: colors.coral }} />}
-                            {b.is_walk_in && <span style={{ fontSize: 9, fontWeight: 600, color: '#60A5FA', backgroundColor: 'rgba(59,130,246,0.1)', borderRadius: 999, padding: '1px 6px' }}>WALK-IN</span>}
-                            <StatusPill status={b.status} />
-                          </div>
+
+                          {b.intake_brief && (
+                            <div style={{ backgroundColor: colors.bgElevated, borderRadius: 8, padding: '10px 12px', borderLeft: `3px solid ${colors.primary}` }}>
+                              <div style={{ fontSize: 11, color: colors.primary, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>AI intake brief</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {b.intake_brief.main_concern && <div style={{ fontSize: 12, color: colors.text }}><span style={{ color: colors.textFaint }}>Concern: </span>{b.intake_brief.main_concern}</div>}
+                                {b.intake_brief.severity && <div style={{ fontSize: 12, color: colors.text }}><span style={{ color: colors.textFaint }}>Severity: </span>{b.intake_brief.severity}/10</div>}
+                                {b.intake_brief.medications?.length > 0 && <div style={{ fontSize: 12, color: colors.text }}><span style={{ color: colors.textFaint }}>Medications: </span>{b.intake_brief.medications.join(', ')}</div>}
+                              </div>
+                            </div>
+                          )}
+
+                          {b.intake_status === 'pending' && b.status === 'confirmed' && (
+                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Ico i={HiOutlineClock} size={12} style={{ color: '#D97706' }} />
+                              <span style={{ fontSize: 11, color: '#D97706' }}>Intake not completed yet</span>
+                            </div>
+                          )}
                         </div>
-
-                        {/* Intake brief summary */}
-                        {b.intake_brief && (
-                          <div style={{ backgroundColor: colors.bgElevated, borderRadius: 8, padding: '10px 12px', borderLeft: `3px solid ${colors.primary}` }}>
-                            <div style={{ fontSize: 11, color: colors.primary, fontWeight: 500, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>AI intake brief</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              {b.intake_brief.main_concern && (
-                                <div style={{ fontSize: 12, color: colors.text }}>
-                                  <span style={{ color: colors.textFaint }}>Concern: </span>{b.intake_brief.main_concern}
-                                </div>
-                              )}
-                              {b.intake_brief.severity && (
-                                <div style={{ fontSize: 12, color: colors.text }}>
-                                  <span style={{ color: colors.textFaint }}>Severity: </span>{b.intake_brief.severity}/10
-                                </div>
-                              )}
-                              {b.intake_brief.medications?.length > 0 && (
-                                <div style={{ fontSize: 12, color: colors.text }}>
-                                  <span style={{ color: colors.textFaint }}>Medications: </span>
-                                  {b.intake_brief.medications.join(', ')}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Intake pending note */}
-                        {b.intake_status === 'pending' && b.status === 'confirmed' && (
-                          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Ico i={HiOutlineClock} size={12} style={{ color: '#F59E0B' }} />
-                            <span style={{ fontSize: 11, color: '#F59E0B' }}>Intake not completed yet</span>
-                          </div>
-                        )}
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               )}
@@ -437,10 +390,10 @@ export default function PatientsPage() {
               {activeTab === 'medications' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {medications.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px 0', color: colors.textMuted }}>
+                    <div style={{ textAlign: 'center', padding: '40px 0' }}>
                       <Ico i={HiOutlineChip} size={32} style={{ color: colors.textFaint, marginBottom: 10, justifyContent: 'center' }} />
                       <div style={{ fontSize: 14, color: colors.text, fontWeight: 500, marginBottom: 4 }}>No medications tracked</div>
-                      <div style={{ fontSize: 13 }}>Chronic medications are extracted automatically from intake conversations</div>
+                      <div style={{ fontSize: 13, color: colors.textMuted }}>Chronic medications are extracted automatically from intake conversations</div>
                     </div>
                   ) : (
                     medications.map(med => {
@@ -448,18 +401,15 @@ export default function PatientsPage() {
                       const refillDate = med.estimated_refill_date ? new Date(med.estimated_refill_date) : null
                       const daysUntilRefill = refillDate ? Math.ceil((refillDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null
                       const isRefillSoon = daysUntilRefill !== null && daysUntilRefill <= 14
-
                       return (
-                        <div key={med.id} style={{ backgroundColor: colors.bgSurface, borderRadius: 10, border: `1px solid ${isRefillSoon ? 'rgba(245,158,11,0.3)' : colors.border}`, padding: '14px 16px' }}>
+                        <div key={med.id} style={{ backgroundColor: colors.bgSurface, borderRadius: 10, border: `1px solid ${isRefillSoon ? 'rgba(217,119,6,0.3)' : colors.border}`, padding: '14px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div>
                               <div style={{ fontSize: 14, fontWeight: 600, color: colors.text, marginBottom: 4, textTransform: 'capitalize' }}>{med.medication_name}</div>
                               <div style={{ display: 'flex', gap: 12 }}>
-                                {med.last_prescribed_date && (
-                                  <span style={{ fontSize: 12, color: colors.textMuted }}>Last prescribed: {med.last_prescribed_date}</span>
-                                )}
+                                {med.last_prescribed_date && <span style={{ fontSize: 12, color: colors.textMuted }}>Last prescribed: {med.last_prescribed_date}</span>}
                                 {med.estimated_refill_date && (
-                                  <span style={{ fontSize: 12, color: isRefillSoon ? '#F59E0B' : colors.textMuted }}>
+                                  <span style={{ fontSize: 12, color: isRefillSoon ? '#D97706' : colors.textMuted }}>
                                     Refill due: {med.estimated_refill_date}
                                     {daysUntilRefill !== null && daysUntilRefill > 0 && ` (${daysUntilRefill} days)`}
                                     {daysUntilRefill !== null && daysUntilRefill <= 0 && ' (overdue)'}
@@ -468,9 +418,7 @@ export default function PatientsPage() {
                               </div>
                             </div>
                             {isRefillSoon && (
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.08)', borderRadius: 999, padding: '3px 10px', border: '1px solid rgba(245,158,11,0.25)', whiteSpace: 'nowrap' }}>
-                                Refill soon
-                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#D97706', backgroundColor: 'rgba(217,119,6,0.08)', borderRadius: 999, padding: '3px 10px', border: '1px solid rgba(217,119,6,0.25)', whiteSpace: 'nowrap' }}>Refill soon</span>
                             )}
                           </div>
                         </div>
@@ -482,10 +430,10 @@ export default function PatientsPage() {
 
               {/* DOCUMENTS */}
               {activeTab === 'documents' && (
-                <div style={{ textAlign: 'center', padding: '40px 0', color: colors.textMuted }}>
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
                   <Ico i={HiOutlineDocumentText} size={32} style={{ color: colors.textFaint, marginBottom: 10, justifyContent: 'center' }} />
                   <div style={{ fontSize: 14, color: colors.text, fontWeight: 500, marginBottom: 4 }}>Documents</div>
-                  <div style={{ fontSize: 13 }}>Sick letters and certificates generated for this patient will appear here</div>
+                  <div style={{ fontSize: 13, color: colors.textMuted }}>Sick letters and certificates generated for this patient will appear here</div>
                 </div>
               )}
             </div>

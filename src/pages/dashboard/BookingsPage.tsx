@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { colors } from '../../theme/colors'
+import { useTheme } from '../../context/ThemeContext'
 import apiClient from '../../api/client'
 import {
   HiOutlineClipboardList,
@@ -9,9 +9,7 @@ import {
   HiOutlinePencil,
   HiOutlineX,
   HiOutlineCheck,
-  HiOutlineFilter,
   HiOutlineExclamation,
-  HiOutlineClock,
   HiOutlineChevronDown,
 } from 'react-icons/hi'
 
@@ -44,28 +42,31 @@ interface Booking {
 
 const STATUS_OPTIONS = ['all', 'confirmed', 'arrived', 'in_consultation', 'completed', 'no_show', 'cancelled']
 
-const STATUS_MAP: Record<string, { label: string; color: string; dot: string }> = {
-  confirmed:       { label: 'Confirmed',      color: colors.primary,  dot: colors.primary },
-  arrived:         { label: 'Arrived',         color: '#0284C7',       dot: '#0284C7' },
-  in_consultation: { label: 'In Consultation', color: '#7C3AED',       dot: '#7C3AED' },
-  completed:       { label: 'Completed',       color: '#059669',       dot: '#059669' },
-  no_show:         { label: 'No-show',         color: colors.coral,    dot: colors.coral },
-  cancelled:       { label: 'Cancelled',       color: colors.textMuted, dot: colors.textFaint },
+const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  confirmed:       { label: 'Confirmed',      color: '#0F766E' },
+  arrived:         { label: 'Arrived',         color: '#0284C7' },
+  in_consultation: { label: 'In Consultation', color: '#7C3AED' },
+  completed:       { label: 'Completed',       color: '#059669' },
+  no_show:         { label: 'No-show',         color: '#DC2626' },
+  cancelled:       { label: 'Cancelled',       color: '#6B7280' },
 }
 
-function getRiskLabel(score: string) {
-  const n = parseInt(score || '0')
-  if (n < 30) return { label: 'Low',    color: colors.primary }
-  if (n < 65) return { label: 'Medium', color: '#F59E0B' }
-  return               { label: 'High',   color: colors.coral }
-}
+const STATUS_ACTIONS = [
+  { status: 'arrived',         label: 'Mark arrived',    color: '#0284C7' },
+  { status: 'in_consultation', label: 'In consultation', color: '#7C3AED' },
+  { status: 'completed',       label: 'Mark completed',  color: '#059669' },
+  { status: 'no_show',         label: 'No-show',         color: '#DC2626' },
+  { status: 'cancelled',       label: 'Cancel booking',  color: '#6B7280' },
+]
 
 export default function BookingsPage() {
-  const [bookings, setBookings]         = useState<Booking[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [search, setSearch]             = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [dateFilter, setDateFilter]     = useState('all')
+  const { colors } = useTheme()
+
+  const [bookings, setBookings]               = useState<Booking[]>([])
+  const [loading, setLoading]                 = useState(true)
+  const [search, setSearch]                   = useState('')
+  const [statusFilter, setStatusFilter]       = useState('all')
+  const [dateFilter, setDateFilter]           = useState('all')
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [showEditModal, setShowEditModal]     = useState(false)
   const [editNote, setEditNote]               = useState('')
@@ -136,10 +137,10 @@ export default function BookingsPage() {
       (b.specialty ?? '').toLowerCase().includes(q)
     const matchStatus = statusFilter === 'all' || b.status === statusFilter
     const matchDate =
-      dateFilter === 'all'    ? true :
-      dateFilter === 'today'  ? b.slot_date === today :
-      dateFilter === 'week'   ? b.slot_date >= today && b.slot_date <= weekEndStr :
-      dateFilter === 'past'   ? b.slot_date < today : true
+      dateFilter === 'all'   ? true :
+      dateFilter === 'today' ? b.slot_date === today :
+      dateFilter === 'week'  ? b.slot_date >= today && b.slot_date <= weekEndStr :
+      dateFilter === 'past'  ? b.slot_date < today : true
     return matchSearch && matchStatus && matchDate
   })
 
@@ -150,85 +151,61 @@ export default function BookingsPage() {
     { key: 'past',  label: 'Past' },
   ]
 
-  const STATUS_ACTIONS = [
-    { status: 'arrived',         label: 'Mark arrived',       color: '#0284C7' },
-    { status: 'in_consultation', label: 'In consultation',    color: '#7C3AED' },
-    { status: 'completed',       label: 'Mark completed',     color: '#059669' },
-    { status: 'no_show',         label: 'No-show',            color: colors.coral },
-    { status: 'cancelled',       label: 'Cancel booking',     color: colors.textMuted },
-  ]
+  const getRiskLabel = (score: string) => {
+    const n = parseInt(score || '0')
+    if (n < 30) return { label: 'Low',    color: colors.primary }
+    if (n < 65) return { label: 'Medium', color: '#D97706' }
+    return               { label: 'High',   color: '#DC2626' }
+  }
+
+  const tableHeaderBg = colors.bgBase === '#F0F7F5' ? '#D4E8E3' : '#0A1A17'
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: colors.bgBase }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* ── PAGE HEADER ── */}
+        {/* Header */}
         <div style={{ padding: '24px 32px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
             <div style={{ width: 4, height: 22, backgroundColor: colors.primary, borderRadius: 2 }} />
-            <h1 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0 }}>
-              Bookings
-            </h1>
-            <span style={{ fontSize: 13, color: colors.textMuted, marginLeft: 4 }}>
-              {filtered.length} record{filtered.length !== 1 ? 's' : ''}
-            </span>
+            <h1 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0 }}>Bookings</h1>
+            <span style={{ fontSize: 13, color: colors.textMuted, marginLeft: 4 }}>{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
           </div>
 
-          {/* ── FILTER BAR ── */}
+          {/* Filter bar */}
           <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, padding: '14px 20px', display: 'flex', gap: 12, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
-
-            {/* Search */}
             <div style={{ flex: 1, minWidth: 220, position: 'relative' }}>
               <Ico i={HiOutlineSearch} size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: colors.textFaint }} />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search patient name, reason..."
-                style={{ width: '100%', paddingLeft: 36, paddingRight: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-              />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search patient name, reason..." style={{ width: '100%', paddingLeft: 36, paddingRight: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
             </div>
 
-            {/* Date filter */}
             <div style={{ display: 'flex', gap: 6 }}>
               {DATE_FILTERS.map(f => (
-                <button
-                  key={f.key}
-                  onClick={() => setDateFilter(f.key)}
-                  style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${dateFilter === f.key ? colors.primary : colors.border}`, backgroundColor: dateFilter === f.key ? colors.primaryBg : 'transparent', color: dateFilter === f.key ? colors.primary : colors.textMuted, fontSize: 12, fontWeight: dateFilter === f.key ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >
+                <button key={f.key} onClick={() => setDateFilter(f.key)} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${dateFilter === f.key ? colors.primary : colors.border}`, backgroundColor: dateFilter === f.key ? colors.primaryBg : colors.bgSurface, color: dateFilter === f.key ? colors.primary : colors.textMuted, fontSize: 12, fontWeight: dateFilter === f.key ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   {f.label}
                 </button>
               ))}
             </div>
 
-            {/* Status filter */}
             <div style={{ position: 'relative' }}>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                style={{ appearance: 'none', paddingLeft: 12, paddingRight: 32, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 12, cursor: 'pointer', outline: 'none' }}
-              >
-                {STATUS_OPTIONS.map(s => (
-                  <option key={s} value={s}>{s === 'all' ? 'All statuses' : STATUS_MAP[s]?.label ?? s}</option>
-                ))}
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ appearance: 'none', paddingLeft: 12, paddingRight: 32, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s === 'all' ? 'All statuses' : STATUS_MAP[s]?.label ?? s}</option>)}
               </select>
               <Ico i={HiOutlineChevronDown} size={13} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: colors.textFaint, pointerEvents: 'none' }} />
             </div>
           </div>
         </div>
 
-        {/* ── TABLE ── */}
+        {/* Table */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 32px 32px' }}>
           <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
 
-            {/* Table header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 120px', gap: 0, backgroundColor: '#0A1A17', padding: '12px 20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 120px', backgroundColor: tableHeaderBg, padding: '12px 20px' }}>
               {['Patient', 'Date & time', 'Specialty', 'Risk', 'Status', 'Actions'].map(h => (
                 <span key={h} style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
               ))}
             </div>
 
-            {/* Rows */}
             {loading ? (
               <div style={{ padding: 48, textAlign: 'center', color: colors.textMuted, fontSize: 14 }}>Loading bookings...</div>
             ) : filtered.length === 0 ? (
@@ -242,11 +219,9 @@ export default function BookingsPage() {
                 const st = STATUS_MAP[b.status] ?? STATUS_MAP.confirmed
                 const risk = getRiskLabel(b.risk_score)
                 const isLast = i === filtered.length - 1
-
                 return (
-                  <div
-                    key={b.id}
-                    style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 120px', gap: 0, padding: '14px 20px', borderBottom: isLast ? 'none' : `1px solid ${colors.border}`, alignItems: 'center', transition: 'background 0.1s' }}
+                  <div key={b.id}
+                    style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 120px', padding: '14px 20px', borderBottom: isLast ? 'none' : `1px solid ${colors.border}`, alignItems: 'center', transition: 'background 0.1s' }}
                     onMouseEnter={e => (e.currentTarget.style.backgroundColor = colors.bgElevated)}
                     onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
@@ -257,21 +232,15 @@ export default function BookingsPage() {
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {b.doctor_name ?? 'Unknown'}
-                          </span>
-                          {b.crisis_flag && <Ico i={HiOutlineExclamation} size={13} style={{ color: colors.coral }} />}
-                          {b.is_walk_in && (
-                            <span style={{ fontSize: 9, fontWeight: 700, color: '#60A5FA', backgroundColor: 'rgba(59,130,246,0.12)', borderRadius: 999, padding: '1px 6px', border: '1px solid rgba(59,130,246,0.25)' }}>WALK-IN</span>
-                          )}
+                          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.doctor_name ?? 'Unknown'}</span>
+                          {b.crisis_flag && <Ico i={HiOutlineExclamation} size={13} style={{ color: '#DC2626' }} />}
+                          {b.is_walk_in && <span style={{ fontSize: 9, fontWeight: 700, color: '#2563EB', backgroundColor: 'rgba(37,99,235,0.1)', borderRadius: 999, padding: '1px 6px', border: '1px solid rgba(37,99,235,0.25)' }}>WALK-IN</span>}
                         </div>
-                        {b.reason && (
-                          <span style={{ fontSize: 11, color: colors.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', maxWidth: 200 }}>{b.reason}</span>
-                        )}
+                        {b.reason && <span style={{ fontSize: 11, color: colors.textFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', maxWidth: 200 }}>{b.reason}</span>}
                       </div>
                     </div>
 
-                    {/* Date + time */}
+                    {/* Date */}
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 500, color: colors.text }}>{b.slot_date ?? '—'}</div>
                       <div style={{ fontSize: 11, color: colors.textFaint }}>{b.slot_start_time?.slice(0, 5) ?? ''}</div>
@@ -288,37 +257,20 @@ export default function BookingsPage() {
 
                     {/* Status */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: st.dot }} />
+                      <div style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: st.color }} />
                       <span style={{ fontSize: 12, color: st.color, fontWeight: 500 }}>{st.label}</span>
                     </div>
 
-                    {/* Actions — icon only */}
+                    {/* Actions */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {/* View / status update */}
-                      <button
-                        onClick={() => setSelectedBooking(selectedBooking?.id === b.id ? null : b)}
-                        title="Update status"
-                        style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${selectedBooking?.id === b.id ? colors.primaryBorder : colors.border}`, backgroundColor: selectedBooking?.id === b.id ? colors.primaryBg : 'transparent', color: selectedBooking?.id === b.id ? colors.primary : colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
+                      <button onClick={() => setSelectedBooking(selectedBooking?.id === b.id ? null : b)} title="Update status" style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${selectedBooking?.id === b.id ? colors.primaryBorder : colors.border}`, backgroundColor: selectedBooking?.id === b.id ? colors.primaryBg : colors.bgSurface, color: selectedBooking?.id === b.id ? colors.primary : colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Ico i={HiOutlineEye} size={15} />
                       </button>
-
-                      {/* Edit */}
-                      <button
-                        onClick={() => openEdit(b)}
-                        title="Edit booking"
-                        style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: 'transparent', color: colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
+                      <button onClick={() => openEdit(b)} title="Edit booking" style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, color: colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Ico i={HiOutlinePencil} size={15} />
                       </button>
-
-                      {/* Cancel */}
                       {!['cancelled', 'completed', 'no_show'].includes(b.status) && (
-                        <button
-                          onClick={() => handleCancel(b.id)}
-                          title="Cancel booking"
-                          style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: 'transparent', color: colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
+                        <button onClick={() => handleCancel(b.id)} title="Cancel booking" style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, color: colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Ico i={HiOutlineTrash} size={15} />
                         </button>
                       )}
@@ -331,7 +283,7 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      {/* ── STATUS UPDATE PANEL ── */}
+      {/* Status update panel */}
       {selectedBooking && !showEditModal && (
         <div style={{ width: 320, borderLeft: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
           <div style={{ padding: '16px 20px', borderBottom: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -340,28 +292,22 @@ export default function BookingsPage() {
               <Ico i={HiOutlineX} size={17} />
             </button>
           </div>
-
           <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-            {/* Patient summary */}
             <div style={{ marginBottom: 20, paddingBottom: 20, borderBottom: `1px solid ${colors.border}` }}>
               <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 4 }}>{selectedBooking.doctor_name}</div>
               <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8 }}>{selectedBooking.slot_date} · {selectedBooking.slot_start_time?.slice(0, 5)}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {(() => { const st = STATUS_MAP[selectedBooking.status] ?? STATUS_MAP.confirmed; return (
-                  <span style={{ fontSize: 11, fontWeight: 600, color: st.color, backgroundColor: `${st.dot}12`, borderRadius: 999, padding: '3px 10px', border: `1px solid ${st.dot}30` }}>
-                    {st.label}
-                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: st.color, backgroundColor: `${st.color}12`, borderRadius: 999, padding: '3px 10px', border: `1px solid ${st.color}30` }}>{st.label}</span>
                 )})()}
                 {selectedBooking.crisis_flag && (
-                  <span style={{ fontSize: 11, fontWeight: 600, color: colors.coral, backgroundColor: colors.coralBg, borderRadius: 999, padding: '3px 10px', border: `1px solid ${colors.coralBorder}`, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Ico i={HiOutlineExclamation} size={11} />
-                    Crisis
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#DC2626', backgroundColor: 'rgba(220,38,38,0.08)', borderRadius: 999, padding: '3px 10px', border: '1px solid rgba(220,38,38,0.2)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Ico i={HiOutlineExclamation} size={11} />Crisis
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Intake brief summary */}
             {selectedBooking.intake_brief && (
               <div style={{ backgroundColor: colors.bgElevated, borderRadius: 10, padding: '12px 14px', marginBottom: 20 }}>
                 <div style={{ fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500, marginBottom: 8 }}>Intake brief</div>
@@ -378,15 +324,11 @@ export default function BookingsPage() {
               </div>
             )}
 
-            {/* Status actions */}
             <div style={{ fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500, marginBottom: 10 }}>Update status</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {STATUS_ACTIONS.filter(a => a.status !== selectedBooking.status).map(action => (
-                <button
-                  key={action.status}
-                  onClick={() => handleStatusUpdate(selectedBooking.id, action.status)}
-                  disabled={statusLoading === action.status}
-                  style={{ padding: '10px 14px', borderRadius: 8, border: `1px solid ${action.color}25`, backgroundColor: `${action.color}10`, color: action.color, fontSize: 13, fontWeight: 500, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, opacity: statusLoading === action.status ? 0.6 : 1 }}
+                <button key={action.status} onClick={() => handleStatusUpdate(selectedBooking.id, action.status)} disabled={statusLoading === action.status}
+                  style={{ padding: '10px 14px', borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: action.color, fontSize: 13, fontWeight: 500, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, opacity: statusLoading === action.status ? 0.6 : 1 }}
                 >
                   <div style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: action.color }} />
                   {statusLoading === action.status ? 'Updating...' : action.label}
@@ -397,9 +339,9 @@ export default function BookingsPage() {
         </div>
       )}
 
-      {/* ── EDIT MODAL ── */}
+      {/* Edit modal */}
       {showEditModal && selectedBooking && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ backgroundColor: colors.bgSurface, borderRadius: 16, border: `1px solid ${colors.border}`, padding: 28, width: 420, maxWidth: '90vw' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <div>
@@ -410,43 +352,20 @@ export default function BookingsPage() {
                 <Ico i={HiOutlineX} size={18} />
               </button>
             </div>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 6, fontWeight: 500 }}>Reason for visit</label>
-                <input
-                  value={editReason}
-                  onChange={e => setEditReason(e.target.value)}
-                  placeholder="e.g. Flu symptoms, follow-up..."
-                  style={{ width: '100%', padding: '10px 12px', backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-                />
+                <input value={editReason} onChange={e => setEditReason(e.target.value)} placeholder="e.g. Flu symptoms, follow-up..." style={{ width: '100%', padding: '10px 12px', backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
               </div>
               <div>
                 <label style={{ fontSize: 12, color: colors.textMuted, display: 'block', marginBottom: 6, fontWeight: 500 }}>Receptionist note</label>
-                <textarea
-                  value={editNote}
-                  onChange={e => setEditNote(e.target.value)}
-                  placeholder="Private note visible only to the practice..."
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 12px', backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }}
-                />
+                <textarea value={editNote} onChange={e => setEditNote(e.target.value)} placeholder="Private note visible only to the practice..." rows={3} style={{ width: '100%', padding: '10px 12px', backgroundColor: colors.bgElevated, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }} />
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-              <button
-                onClick={() => setShowEditModal(false)}
-                style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: 'transparent', color: colors.textMuted, fontSize: 13, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                disabled={saving}
-                style={{ flex: 2, padding: '11px', borderRadius: 8, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: saving ? 0.7 : 1 }}
-              >
-                <Ico i={HiOutlineCheck} size={15} />
-                {saving ? 'Saving...' : 'Save changes'}
+              <button onClick={() => setShowEditModal(false)} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSaveEdit} disabled={saving} style={{ flex: 2, padding: '11px', borderRadius: 8, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: saving ? 0.7 : 1 }}>
+                <Ico i={HiOutlineCheck} size={15} />{saving ? 'Saving...' : 'Save changes'}
               </button>
             </div>
           </div>

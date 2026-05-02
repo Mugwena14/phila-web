@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { colors } from '../../theme/colors'
+import { useTheme } from '../../context/ThemeContext'
 import apiClient from '../../api/client'
 import {
-  HiOutlineChartBar,
   HiOutlineRefresh,
   HiOutlineUsers,
   HiOutlineCalendar,
@@ -31,21 +30,21 @@ interface Booking {
   created_at: string
 }
 
-function StatCard({ label, value, sub, icon, color = colors.primary, trend }: {
-  label: string; value: string | number; sub?: string; icon: any; color?: string; trend?: 'up' | 'down' | null
+function StatCard({ label, value, sub, icon, color, trend, colors }: {
+  label: string; value: string | number; sub?: string; icon: any; color: string; trend?: 'up' | 'down' | null; colors: any
 }) {
   return (
     <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ fontSize: 11, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 500 }}>{label}</div>
-        <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: `${color}12`, border: `1px solid ${color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: `${color}15`, border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Ico i={icon} size={16} style={{ color }} />
         </div>
       </div>
       <div style={{ fontSize: 32, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 4 }}>{value}</div>
       {sub && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {trend && <Ico i={trend === 'up' ? HiOutlineTrendingUp : HiOutlineTrendingDown} size={13} style={{ color: trend === 'up' ? '#059669' : colors.coral }} />}
+          {trend && <Ico i={trend === 'up' ? HiOutlineTrendingUp : HiOutlineTrendingDown} size={13} style={{ color: trend === 'up' ? '#059669' : '#DC2626' }} />}
           <span style={{ fontSize: 12, color: colors.textMuted }}>{sub}</span>
         </div>
       )}
@@ -53,8 +52,8 @@ function StatCard({ label, value, sub, icon, color = colors.primary, trend }: {
   )
 }
 
-function BarChart({ data, color = colors.primary, height = 120 }: {
-  data: { label: string; value: number }[]; color?: string; height?: number
+function BarChart({ data, color, height = 120, colors }: {
+  data: { label: string; value: number }[]; color: string; height?: number; colors: any
 }) {
   const max = Math.max(...data.map(d => d.value), 1)
   return (
@@ -63,16 +62,7 @@ function BarChart({ data, color = colors.primary, height = 120 }: {
         <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
           <div
             title={`${d.label}: ${d.value}`}
-            style={{
-              width: '100%',
-              height: `${Math.max((d.value / max) * 100, d.value > 0 ? 4 : 0)}%`,
-              backgroundColor: color,
-              borderRadius: '4px 4px 0 0',
-              opacity: 0.85,
-              transition: 'height 0.3s ease',
-              cursor: 'default',
-              minHeight: d.value > 0 ? 4 : 0,
-            }}
+            style={{ width: '100%', height: `${Math.max((d.value / max) * 100, d.value > 0 ? 4 : 0)}%`, backgroundColor: color, borderRadius: '4px 4px 0 0', opacity: 0.85, transition: 'height 0.3s ease', minHeight: d.value > 0 ? 4 : 0 }}
           />
           <span style={{ fontSize: 10, color: colors.textFaint, whiteSpace: 'nowrap', position: 'absolute', bottom: 0 }}>{d.label}</span>
         </div>
@@ -81,8 +71,8 @@ function BarChart({ data, color = colors.primary, height = 120 }: {
   )
 }
 
-function DonutChart({ value, total, color = colors.primary, size = 100 }: {
-  value: number; total: number; color?: string; size?: number
+function DonutChart({ value, total, color, size = 100, colors }: {
+  value: number; total: number; color: string; size?: number; colors: any
 }) {
   const pct = total === 0 ? 0 : Math.round((value / total) * 100)
   const r = 40
@@ -104,8 +94,8 @@ function DonutChart({ value, total, color = colors.primary, size = 100 }: {
   )
 }
 
-function HorizontalBar({ label, value, total, color = colors.primary }: {
-  label: string; value: number; total: number; color?: string
+function HorizontalBar({ label, value, total, color, colors }: {
+  label: string; value: number; total: number; color: string; colors: any
 }) {
   const pct = total === 0 ? 0 : Math.round((value / total) * 100)
   return (
@@ -125,6 +115,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export default function AnalyticsPage() {
+  const { colors } = useTheme()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState<'30' | '90' | 'all'>('30')
@@ -143,42 +134,36 @@ export default function AnalyticsPage() {
     }
   }
 
-  // Filter by range
-  const now = new Date()
   const filtered = bookings.filter(b => {
     if (range === 'all') return true
     if (!b.slot_date) return false
-    const days = parseInt(range)
     const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - days)
+    cutoff.setDate(cutoff.getDate() - parseInt(range))
     return new Date(b.slot_date) >= cutoff
   })
 
-  // ── COMPUTED STATS ──────────────────────────────────────────────
-  const total = filtered.length
-  const completed   = filtered.filter(b => b.status === 'completed').length
-  const noShows     = filtered.filter(b => b.status === 'no_show').length
-  const cancelled   = filtered.filter(b => b.status === 'cancelled').length
-  const confirmed   = filtered.filter(b => b.status === 'confirmed').length
-  const arrived     = filtered.filter(b => b.status === 'arrived').length
-  const walkIns     = filtered.filter(b => b.is_walk_in).length
-  const crisisFlags = filtered.filter(b => b.crisis_flag).length
+  const total        = filtered.length
+  const completed    = filtered.filter(b => b.status === 'completed').length
+  const noShows      = filtered.filter(b => b.status === 'no_show').length
+  const cancelled    = filtered.filter(b => b.status === 'cancelled').length
+  const confirmed    = filtered.filter(b => b.status === 'confirmed').length
+  const arrived      = filtered.filter(b => b.status === 'arrived').length
+  const walkIns      = filtered.filter(b => b.is_walk_in).length
+  const crisisFlags  = filtered.filter(b => b.crisis_flag).length
   const intakeComplete = filtered.filter(b => b.intake_status === 'complete').length
-  const highRisk    = filtered.filter(b => parseInt(b.risk_score || '0') >= 65).length
-  const medRisk     = filtered.filter(b => parseInt(b.risk_score || '0') >= 30 && parseInt(b.risk_score || '0') < 65).length
-  const lowRisk     = filtered.filter(b => parseInt(b.risk_score || '0') < 30).length
+  const highRisk     = filtered.filter(b => parseInt(b.risk_score || '0') >= 65).length
+  const medRisk      = filtered.filter(b => parseInt(b.risk_score || '0') >= 30 && parseInt(b.risk_score || '0') < 65).length
+  const lowRisk      = filtered.filter(b => parseInt(b.risk_score || '0') < 30).length
 
-  const noShowRate  = total === 0 ? 0 : Math.round((noShows / total) * 100)
-  const intakeRate  = total === 0 ? 0 : Math.round((intakeComplete / total) * 100)
+  const noShowRate     = total === 0 ? 0 : Math.round((noShows / total) * 100)
+  const intakeRate     = total === 0 ? 0 : Math.round((intakeComplete / total) * 100)
   const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100)
 
-  // Bookings by day of week
   const byDay = DAYS.map((label, i) => ({
     label,
     value: filtered.filter(b => b.slot_date && new Date(b.slot_date).getDay() === i).length
   }))
 
-  // Bookings by month (last 6 months)
   const byMonth = Array.from({ length: 6 }, (_, i) => {
     const d = new Date()
     d.setMonth(d.getMonth() - (5 - i))
@@ -194,7 +179,6 @@ export default function AnalyticsPage() {
     }
   })
 
-  // Busiest hour
   const byHour: Record<string, number> = {}
   filtered.forEach(b => {
     if (b.slot_start_time) {
@@ -204,17 +188,14 @@ export default function AnalyticsPage() {
   })
   const busiestHour = Object.entries(byHour).sort((a, b) => b[1] - a[1])[0]
 
-  // Unique patients
-  const uniquePatients = new Set(filtered.map(b => b.id)).size
-
   const RANGES = [
-    { key: '30',  label: 'Last 30 days' },
-    { key: '90',  label: 'Last 90 days' },
+    { key: '30', label: 'Last 30 days' },
+    { key: '90', label: 'Last 90 days' },
     { key: 'all', label: 'All time' },
   ]
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', backgroundColor: colors.bgBase }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
@@ -222,11 +203,11 @@ export default function AnalyticsPage() {
         <h1 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0 }}>Analytics</h1>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           {RANGES.map(r => (
-            <button key={r.key} onClick={() => setRange(r.key as any)} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${range === r.key ? colors.primary : colors.border}`, backgroundColor: range === r.key ? colors.primaryBg : 'transparent', color: range === r.key ? colors.primary : colors.textMuted, fontSize: 12, fontWeight: range === r.key ? 600 : 400, cursor: 'pointer' }}>
+            <button key={r.key} onClick={() => setRange(r.key as any)} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${range === r.key ? colors.primary : colors.border}`, backgroundColor: range === r.key ? colors.primaryBg : colors.bgSurface, color: range === r.key ? colors.primary : colors.textMuted, fontSize: 12, fontWeight: range === r.key ? 600 : 400, cursor: 'pointer' }}>
               {r.label}
             </button>
           ))}
-          <button onClick={load} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${colors.border}`, background: 'none', cursor: 'pointer', color: colors.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={load} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSurface, cursor: 'pointer', color: colors.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Ico i={HiOutlineRefresh} size={15} />
           </button>
         </div>
@@ -236,82 +217,71 @@ export default function AnalyticsPage() {
         <div style={{ padding: 64, textAlign: 'center', color: colors.textMuted }}>Loading analytics...</div>
       ) : (
         <>
-          {/* ── TOP STAT CARDS ── */}
+          {/* Stat cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>
-            <StatCard label="Total appointments" value={total} icon={HiOutlineCalendar} color={colors.primary} sub={`${confirmed} upcoming`} />
-            <StatCard label="Completed" value={completed} icon={HiOutlineTrendingUp} color="#059669" sub={`${completionRate}% completion rate`} trend="up" />
-            <StatCard label="No-shows" value={noShows} icon={HiOutlineTrendingDown} color={colors.coral} sub={`${noShowRate}% no-show rate`} trend={noShowRate > 10 ? 'down' : null} />
-            <StatCard label="Walk-ins" value={walkIns} icon={HiOutlineUsers} color="#60A5FA" sub={`${total === 0 ? 0 : Math.round((walkIns / total) * 100)}% of bookings`} />
-            <StatCard label="Crisis flags" value={crisisFlags} icon={HiOutlineExclamation} color={colors.coral} sub="Detected by AI" />
-            <StatCard label="AI intake rate" value={`${intakeRate}%`} icon={RiRobot2Line} color={colors.primary} sub={`${intakeComplete} of ${total} completed`} />
+            <StatCard label="Total appointments" value={total} icon={HiOutlineCalendar} color={colors.primary} sub={`${confirmed} upcoming`} colors={colors} />
+            <StatCard label="Completed" value={completed} icon={HiOutlineTrendingUp} color="#059669" sub={`${completionRate}% completion rate`} trend="up" colors={colors} />
+            <StatCard label="No-shows" value={noShows} icon={HiOutlineTrendingDown} color="#DC2626" sub={`${noShowRate}% no-show rate`} trend={noShowRate > 10 ? 'down' : null} colors={colors} />
+            <StatCard label="Walk-ins" value={walkIns} icon={HiOutlineUsers} color="#2563EB" sub={`${total === 0 ? 0 : Math.round((walkIns / total) * 100)}% of bookings`} colors={colors} />
+            <StatCard label="Crisis flags" value={crisisFlags} icon={HiOutlineExclamation} color="#DC2626" sub="Detected by AI" colors={colors} />
+            <StatCard label="AI intake rate" value={`${intakeRate}%`} icon={RiRobot2Line} color={colors.primary} sub={`${intakeComplete} of ${total} completed`} colors={colors} />
           </div>
 
-          {/* ── CHARTS ROW ── */}
+          {/* Charts row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-
-            {/* Bookings by month */}
             <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, padding: '20px 24px' }}>
               <div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 4 }}>Appointments by month</div>
               <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 20 }}>Last 6 months</div>
-              <BarChart data={byMonth} color={colors.primary} height={140} />
+              <BarChart data={byMonth} color={colors.primary} height={140} colors={colors} />
             </div>
-
-            {/* Bookings by day of week */}
             <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, padding: '20px 24px' }}>
               <div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 4 }}>Busiest days</div>
               <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 20 }}>
                 {busiestHour ? `Peak time: ${busiestHour[0]}:00 (${busiestHour[1]} bookings)` : 'No data yet'}
               </div>
-              <BarChart data={byDay} color="#60A5FA" height={140} />
+              <BarChart data={byDay} color="#2563EB" height={140} colors={colors} />
             </div>
           </div>
 
-          {/* ── BOTTOM ROW ── */}
+          {/* Bottom row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-
-            {/* Booking status breakdown */}
             <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, padding: '20px 24px' }}>
               <div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 16 }}>Booking status</div>
-              <HorizontalBar label="Completed" value={completed} total={total} color="#059669" />
-              <HorizontalBar label="Confirmed" value={confirmed} total={total} color={colors.primary} />
-              <HorizontalBar label="No-show" value={noShows} total={total} color={colors.coral} />
-              <HorizontalBar label="Cancelled" value={cancelled} total={total} color={colors.textFaint} />
-              <HorizontalBar label="Arrived" value={arrived} total={total} color="#0284C7" />
+              <HorizontalBar label="Completed" value={completed} total={total} color="#059669" colors={colors} />
+              <HorizontalBar label="Confirmed" value={confirmed} total={total} color={colors.primary} colors={colors} />
+              <HorizontalBar label="No-show" value={noShows} total={total} color="#DC2626" colors={colors} />
+              <HorizontalBar label="Cancelled" value={cancelled} total={total} color={colors.textFaint} colors={colors} />
+              <HorizontalBar label="Arrived" value={arrived} total={total} color="#2563EB" colors={colors} />
             </div>
 
-            {/* Risk breakdown */}
             <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, padding: '20px 24px' }}>
               <div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 16 }}>Patient risk levels</div>
-              <HorizontalBar label="Low risk" value={lowRisk} total={total} color={colors.primary} />
-              <HorizontalBar label="Medium risk" value={medRisk} total={total} color="#F59E0B" />
-              <HorizontalBar label="High risk" value={highRisk} total={total} color={colors.coral} />
+              <HorizontalBar label="Low risk" value={lowRisk} total={total} color={colors.primary} colors={colors} />
+              <HorizontalBar label="Medium risk" value={medRisk} total={total} color="#D97706" colors={colors} />
+              <HorizontalBar label="High risk" value={highRisk} total={total} color="#DC2626" colors={colors} />
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${colors.border}` }}>
-                <div style={{ fontSize: 11, color: colors.textMuted, marginBottom: 8 }}>WALK-INS VS BOOKED</div>
-                <HorizontalBar label="App bookings" value={total - walkIns} total={total} color={colors.primary} />
-                <HorizontalBar label="Walk-ins" value={walkIns} total={total} color="#60A5FA" />
+                <div style={{ fontSize: 11, color: colors.textMuted, marginBottom: 8, fontWeight: 500 }}>WALK-INS VS BOOKED</div>
+                <HorizontalBar label="App bookings" value={total - walkIns} total={total} color={colors.primary} colors={colors} />
+                <HorizontalBar label="Walk-ins" value={walkIns} total={total} color="#2563EB" colors={colors} />
               </div>
             </div>
 
-            {/* Intake + AI stats */}
             <div style={{ backgroundColor: colors.bgSurface, borderRadius: 12, border: `1px solid ${colors.border}`, padding: '20px 24px' }}>
               <div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 20 }}>AI agent performance</div>
-
-              {/* Intake donut */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20 }}>
-                <DonutChart value={intakeComplete} total={total} color={colors.primary} size={90} />
+                <DonutChart value={intakeComplete} total={total} color={colors.primary} size={90} colors={colors} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: colors.text, marginBottom: 4 }}>Intake completion</div>
                   <div style={{ fontSize: 12, color: colors.textMuted }}>{intakeComplete} of {total} patients</div>
                   <div style={{ fontSize: 11, color: colors.textFaint, marginTop: 4 }}>completed AI intake</div>
                 </div>
               </div>
-
               <div style={{ borderTop: `1px solid ${colors.border}`, paddingTop: 16 }}>
                 {[
                   { label: 'Intake complete', value: intakeComplete, color: colors.primary },
                   { label: 'Intake pending', value: total - intakeComplete, color: colors.textFaint },
-                  { label: 'Crisis flags', value: crisisFlags, color: colors.coral },
-                  { label: 'High risk patients', value: highRisk, color: '#F59E0B' },
+                  { label: 'Crisis flags', value: crisisFlags, color: '#DC2626' },
+                  { label: 'High risk patients', value: highRisk, color: '#D97706' },
                 ].map(item => (
                   <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

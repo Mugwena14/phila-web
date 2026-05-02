@@ -5,25 +5,29 @@ import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import OnboardingPage from './pages/dashboard/OnboardingPage'
 import DashboardLayout from './pages/dashboard/DashboardLayout'
+import { ThemeProvider } from './context/ThemeContext'
+import WaitingRoomPage from './pages/WaitingRoomPage'
 
 function AppRoutes() {
   const { token } = useAuth()
 
-  if (!token) {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    )
-  }
-
   return (
     <Routes>
-      <Route path="/onboarding" element={<OnboardingPage />} />
-      <Route path="/dashboard/*" element={<DashboardLayout />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* ── PUBLIC — no auth required ── */}
+      <Route path="/waiting-room" element={<WaitingRoomPage />} />
+      <Route path="/login"    element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+
+      {/* ── AUTH GATED ── */}
+      {token ? (
+        <>
+          <Route path="/onboarding"  element={<OnboardingPage />} />
+          <Route path="/dashboard/*" element={<DashboardLayout />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </>
+      ) : (
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      )}
     </Routes>
   )
 }
@@ -31,7 +35,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <ThemeProvider>
+        <AppRoutes />
+      </ThemeProvider>
     </AuthProvider>
   )
 }
