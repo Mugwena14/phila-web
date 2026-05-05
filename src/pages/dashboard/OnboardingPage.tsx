@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { isAxiosError } from 'axios'
 import { doctorsApi } from '../../api/doctors'
@@ -51,6 +51,225 @@ const STEPS = [
   { num: 5, label: 'Done' },
 ]
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface NominatimResult {
+  place_id: number
+  display_name: string
+  address: {
+    road?: string
+    house_number?: string
+    suburb?: string
+    city?: string
+    town?: string
+    village?: string
+    county?: string
+    state?: string
+    postcode?: string
+  }
+  lat: string
+  lon: string
+}
+
+// ─── Address Autocomplete Component ──────────────────────────────────────────
+
+function AddressAutocomplete({ colors, inp, onSelect }: {
+  colors: any
+  inp: any
+  onSelect: (address: string, city: string, province: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<NominatimResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const mapProvince = (state?: string): string => {
+    if (!state) return ''
+    const provinces = [
+      'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal',
+      'Limpopo', 'Mpumalanga', 'Northern Cape', 'North West', 'Western Cape',
+    ]
+    for (const p of provinces) {
+      if (state.toLowerCase().includes(p.toLowerCase())) return p
+    }
+    return state
+  }
+
+  const extractFields = (result: NominatimResult) => {
+    const a = result.address
+    const streetNumber = a.house_number ? `${a.house_number} ` : ''
+    const street = a.road ?? ''
+    const address = `${streetNumber}${street}`.trim() || result.display_name.split(',')[0]
+    const city = a.city ?? a.town ?? a.village ?? a.county ?? ''
+    const province = mapProvince(a.state)
+    return { address, city, province }
+  }
+
+  const search = async (q: string) => {
+    if (q.trim().length < 3) { setResults([]); setShowDropdown(false); return }
+    setSearching(true)
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', South Africa')}&format=json&addressdetails=1&limit=5&countrycodes=za`,
+        { headers: { 'User-Agent': 'PhilaHealthApp/1.0' } }
+      )
+      const data: NominatimResult[] = await res.json()
+      setResults(data)
+      setShowDropdown(data.length > 0)
+    } catch {
+      setResults([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setQuery(val)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => void search(val), 400)
+  }
+
+  const handleSelect = (result: NominatimResult) => {
+    const { address, city, province } = extractFields(result)
+    setQuery(address)
+    setShowDropdown(false)
+    onSelect(address, city, province)
+  }
+
+  const handleCurrentLocation = () => {
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
+            { headers: { 'User-Agent': 'PhilaHealthApp/1.0' } }
+          )
+          const data: NominatimResult = await res.json()
+          const { address, city, province } = extractFields(data)
+          setQuery(address)
+          onSelect(address, city, province)
+        } catch {
+          alert('Could not get address from your location. Please type it manually.')
+        } finally {
+          setLocating(false)
+        }
+      },
+      () => {
+        setLocating(false)
+        alert('Location access denied. Please type your address manually.')
+      }
+    )
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+
+{/* Current location button */}
+      <button
+        type="button"
+        onClick={handleCurrentLocation}
+        disabled={locating}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          width: '100%', marginBottom: 14, padding: '11px 14px',
+          borderRadius: 8, border: `1px solid ${colors.primaryBorder}`,
+          backgroundColor: colors.primaryBg, color: colors.primary,
+          fontSize: 13, fontWeight: 600,
+          cursor: locating ? 'not-allowed' : 'pointer',
+          opacity: locating ? 0.7 : 1,
+          fontFamily: 'DM Sans, sans-serif',
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          {locating
+            ? <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>
+            : <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></>
+          }
+        </svg>
+        {locating ? 'Getting location...' : 'Use current location'}
+      </button>
+
+      {/* Divider — or type in address */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+        <span style={{ fontSize: 11, color: colors.textFaint, fontWeight: 500, whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif' }}>
+          or type in address
+        </span>
+        <div style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+      </div>
+
+      {/* Search input */}
+      <div style={{ position: 'relative' }}>
+        <input
+          value={query}
+          onChange={handleChange}
+          onFocus={() => results.length > 0 && setShowDropdown(true)}
+          onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+          placeholder="Start typing your surgery address..."
+          style={{ ...inp, paddingRight: 36 }}
+        />
+        {searching && (
+          <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: colors.textFaint }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+        )}
+      </div>
+
+      {/* Dropdown results */}
+      {showDropdown && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+          backgroundColor: colors.bgSurface,
+          border: `1px solid ${colors.border}`,
+          borderRadius: 10, marginTop: 4,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          overflow: 'hidden',
+        }}>
+          {results.map((result) => {
+            const parts = result.display_name.split(',')
+            const main = parts[0]
+            const sub = parts.slice(1, 3).join(',').trim()
+            return (
+              <button
+                key={result.place_id}
+                type="button"
+                onMouseDown={() => handleSelect(result)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '12px 14px', background: 'none',
+                  border: 'none', borderBottom: `1px solid ${colors.border}`,
+                  cursor: 'pointer', transition: 'background 0.1s',
+                  fontFamily: 'DM Sans, sans-serif',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = colors.bgElevated)}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <span style={{ fontSize: 16, marginTop: 1, flexShrink: 0 }}>📍</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 2 }}>{main}</div>
+                    <div style={{ fontSize: 11, color: colors.textMuted }}>{sub}</div>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function OnboardingPage() {
   const { colors } = useTheme()
   const navigate = useNavigate()
@@ -60,12 +279,12 @@ export default function OnboardingPage() {
   const [error, setError] = useState('')
 
   // Step 1
-  const [specialty, setSpecialty]       = useState('')
+  const [specialty, setSpecialty]             = useState('')
   const [customSpecialty, setCustomSpecialty] = useState('')
-  const [qualification, setQualification] = useState('')
-  const [hpcsa, setHpcsa]               = useState('')
-  const [yearsExp, setYearsExp]         = useState('')
-  const [bio, setBio]                   = useState('')
+  const [qualification, setQualification]     = useState('')
+  const [hpcsa, setHpcsa]                     = useState('')
+  const [yearsExp, setYearsExp]               = useState('')
+  const [bio, setBio]                         = useState('')
 
   // Step 2
   const [practiceName, setPracticeName] = useState('')
@@ -79,6 +298,12 @@ export default function OnboardingPage() {
   // Step 3
   const [workingHours, setWorkingHours] = useState<WorkingHoursInput[]>(DEFAULT_HOURS)
 
+  const handleAddressSelect = (selectedAddress: string, selectedCity: string, selectedProvince: string) => {
+    setAddress(selectedAddress)
+    if (selectedCity) setCity(selectedCity)
+    if (selectedProvince) setProvince(selectedProvince)
+  }
+
   const toggleAid = (aid: string) =>
     setSelectedAids(prev => prev.includes(aid) ? prev.filter(a => a !== aid) : [...prev, aid])
 
@@ -87,12 +312,11 @@ export default function OnboardingPage() {
 
   const copyToAll = (sourceIndex: number) => {
     const source = workingHours[sourceIndex]
-    setWorkingHours(prev => prev.map((h, i) =>
+    setWorkingHours(prev => prev.map((h) =>
       h.is_active ? { ...h, start_time: source.start_time, end_time: source.end_time } : h
     ))
   }
 
-  // Preview — generate sample slots
   const generatePreviewSlots = () => {
     const slots: string[] = []
     const dur = parseInt(slotDuration)
@@ -144,7 +368,6 @@ export default function OnboardingPage() {
     }
   }
 
-  // ── Shared input style ──────────────────────────────────────────
   const inp = {
     width: '100%',
     padding: '11px 14px',
@@ -173,14 +396,10 @@ export default function OnboardingPage() {
 
       {step !== 5 && (
         <div style={{ width: '100%', maxWidth: 560, marginBottom: 32 }}>
-
-          {/* Logo */}
           <div style={{ marginBottom: 32 }}>
             <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 22, color: colors.primary }}>Phila</span>
             <span style={{ fontSize: 13, color: colors.textMuted, marginLeft: 8 }}>Practice setup</span>
           </div>
-
-          {/* Step indicators */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 32 }}>
             {STEPS.filter(s => s.num < 5).map((s, i) => (
               <React.Fragment key={s.num}>
@@ -199,7 +418,6 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* ── CARD ── */}
       {step !== 5 && (
         <div style={{ width: '100%', maxWidth: 560, backgroundColor: colors.bgSurface, borderRadius: 16, border: `1px solid ${colors.border}`, padding: 32 }}>
 
@@ -268,22 +486,46 @@ export default function OnboardingPage() {
                 <input value={practiceName} onChange={e => setPracticeName(e.target.value)} placeholder="e.g. Healthpoint Medical Centre" style={inp} />
               </>)}
 
-              {field(<>
-                {label('Street address *')}
-                <input value={address} onChange={e => setAddress(e.target.value)} placeholder="12 Main Road" style={inp} />
-              </>)}
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
-                <div>
-                  {label('City *')}
-                  <input value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. Makhanda" style={inp} />
+              {/* Surgery location */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 10 }}>
+                  Surgery / Practice location
                 </div>
-                <div>
-                  {label('Province *')}
-                  <select value={province} onChange={e => setProvince(e.target.value)} style={inp}>
-                    <option value="">Select province</option>
-                    {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                <div style={{ backgroundColor: colors.primaryBg, border: `1px solid ${colors.primaryBorder}`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <span style={{ fontSize: 16, marginTop: 1 }}>📍</span>
+                  <p style={{ margin: 0, fontSize: 12, color: colors.textMuted, lineHeight: 1.6 }}>
+                    Your surgery address will be pinned on the Phila map so nearby patients can find and book you.
+                  </p>
+                </div>
+
+                {/* Autocomplete */}
+                <div style={{ marginBottom: 14 }}>
+                  {label('Street address *')}
+                  <AddressAutocomplete
+                    colors={colors}
+                    inp={inp}
+                    onSelect={handleAddressSelect}
+                  />
+                </div>
+
+                {/* City + Province — auto-filled but editable */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div>
+                    {label('City / Town *')}
+                    <input
+                      value={city}
+                      onChange={e => setCity(e.target.value)}
+                      placeholder="Auto-filled from address"
+                      style={{ ...inp, borderColor: city ? colors.primaryBorder : colors.border }}
+                    />
+                  </div>
+                  <div>
+                    {label('Province *')}
+                    <select value={province} onChange={e => setProvince(e.target.value)} style={inp}>
+                      <option value="">Select province</option>
+                      {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -395,7 +637,6 @@ export default function OnboardingPage() {
                 <p style={{ fontSize: 13, color: colors.textMuted, margin: 0 }}>This is what a typical day will look like for patients booking you</p>
               </div>
 
-              {/* Practice card */}
               <div style={{ backgroundColor: colors.bgElevated, borderRadius: 12, padding: '16px 18px', marginBottom: 20, border: `1px solid ${colors.border}` }}>
                 <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 2 }}>{practiceName}</div>
                 <div style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>{specialty === 'Other' ? customSpecialty : specialty} · {city}, {province}</div>
@@ -406,7 +647,6 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              {/* Slot preview */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 11, color: colors.textFaint, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, marginBottom: 10 }}>
                   Sample slots — {slotDuration} min each
@@ -430,7 +670,6 @@ export default function OnboardingPage() {
                 )}
               </div>
 
-              {/* Working days summary */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 24 }}>
                 {workingHours.map((wh, i) => (
                   <span key={i} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 999, border: `1px solid ${wh.is_active ? colors.primaryBorder : colors.border}`, backgroundColor: wh.is_active ? colors.primaryBg : 'transparent', color: wh.is_active ? colors.primary : colors.textFaint, fontWeight: wh.is_active ? 600 : 400 }}>
@@ -467,7 +706,6 @@ export default function OnboardingPage() {
             <strong style={{ color: colors.text }}>{practiceName}</strong> is now live on Phila.<br />
             Your slots are generating and patients can start booking.
           </p>
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               onClick={() => navigate('/dashboard')}
