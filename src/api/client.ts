@@ -5,13 +5,13 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios'
 
-// const BASE_URL = 'http://146.231.127.33:8000/api/v1'
-const BASE_URL = 'http://146.231.26.125:8000/api/v1'
+
+const BASE_URL = process.env.BACKEND_URL || 'http://localhost:8000/api/v1'
 const TOKEN_KEY = 'phila_practice_token'
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 15000, // Increased slightly to account for "cold starts" on cloud hosting
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -31,7 +31,10 @@ apiClient.interceptors.response.use(
   (error: AxiosError): Promise<never> => {
     if (error.response?.status === 401) {
       localStorage.removeItem(TOKEN_KEY)
-      window.location.href = '/login'
+      // Only redirect to login if we're not already there to avoid loops
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
