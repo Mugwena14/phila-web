@@ -367,11 +367,17 @@ export default function OnboardingPage() {
         for (const file of imageFiles) {
           const formData = new FormData()
           formData.append('file', file)
-          await fetch(`${apiUrl}/doctors/upload-image`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-          })
+          try {
+            const res = await fetch(`${apiUrl}/doctors/upload-image`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
+            })
+            const data = await res.json()
+            console.log('Upload response:', res.status, JSON.stringify(data))
+          } catch (err) {
+            console.error('Upload failed:', err)
+          }
         }
         setUploadingImages(false)
       }
