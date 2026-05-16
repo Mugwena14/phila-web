@@ -46,9 +46,10 @@ const SLOT_DURATIONS = [
 const STEPS = [
   { num: 1, label: 'Professional' },
   { num: 2, label: 'Practice' },
-  { num: 3, label: 'Hours' },
-  { num: 4, label: 'Preview' },
-  { num: 5, label: 'Done' },
+  { num: 3, label: 'Photos' },
+  { num: 4, label: 'Hours' },
+  { num: 5, label: 'Preview' },
+  { num: 6, label: 'Done' },
 ]
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -168,8 +169,6 @@ function AddressAutocomplete({ colors, inp, onSelect }: {
 
   return (
     <div style={{ position: 'relative' }}>
-
-{/* Current location button */}
       <button
         type="button"
         onClick={handleCurrentLocation}
@@ -194,7 +193,6 @@ function AddressAutocomplete({ colors, inp, onSelect }: {
         {locating ? 'Getting location...' : 'Use current location'}
       </button>
 
-      {/* Divider — or type in address */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <div style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
         <span style={{ fontSize: 11, color: colors.textFaint, fontWeight: 500, whiteSpace: 'nowrap', fontFamily: 'DM Sans, sans-serif' }}>
@@ -203,7 +201,6 @@ function AddressAutocomplete({ colors, inp, onSelect }: {
         <div style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
       </div>
 
-      {/* Search input */}
       <div style={{ position: 'relative' }}>
         <input
           value={query}
@@ -223,7 +220,6 @@ function AddressAutocomplete({ colors, inp, onSelect }: {
         )}
       </div>
 
-      {/* Dropdown results */}
       {showDropdown && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
@@ -278,7 +274,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Step 1
+  // Step 1 — Professional
   const [specialty, setSpecialty]             = useState('')
   const [customSpecialty, setCustomSpecialty] = useState('')
   const [qualification, setQualification]     = useState('')
@@ -286,7 +282,7 @@ export default function OnboardingPage() {
   const [yearsExp, setYearsExp]               = useState('')
   const [bio, setBio]                         = useState('')
 
-  // Step 2
+  // Step 2 — Practice
   const [practiceName, setPracticeName] = useState('')
   const [address, setAddress]           = useState('')
   const [city, setCity]                 = useState('')
@@ -295,7 +291,12 @@ export default function OnboardingPage() {
   const [slotDuration, setSlotDuration] = useState('20')
   const [selectedAids, setSelectedAids] = useState<string[]>(['Cash patients'])
 
-  // Step 3
+  // Step 3 — Photos
+  const [imageFiles, setImageFiles]         = useState<File[]>([])
+  const [imagePreviews, setImagePreviews]   = useState<string[]>([])
+  const [uploadingImages, setUploadingImages] = useState(false)
+
+  // Step 4 — Hours
   const [workingHours, setWorkingHours] = useState<WorkingHoursInput[]>(DEFAULT_HOURS)
 
   const handleAddressSelect = (selectedAddress: string, selectedCity: string, selectedProvince: string) => {
@@ -340,6 +341,8 @@ export default function OnboardingPage() {
     setError('')
     try {
       const finalSpecialty = specialty === 'Other' ? customSpecialty : specialty
+
+      // 1. Create doctor profile
       await doctorsApi.register({
         specialty: finalSpecialty,
         bio,
@@ -355,8 +358,27 @@ export default function OnboardingPage() {
         languages: ['English'],
         working_hours: workingHours,
       })
-      setStep(5)
+
+      // 2. Upload images after doctor is created
+      if (imageFiles.length > 0) {
+        setUploadingImages(true)
+        const token = localStorage.getItem('phila_practice_token')
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'
+        for (const file of imageFiles) {
+          const formData = new FormData()
+          formData.append('file', file)
+          await fetch(`${apiUrl}/doctors/upload-image`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          })
+        }
+        setUploadingImages(false)
+      }
+
+      setStep(6)
     } catch (err: unknown) {
+      setUploadingImages(false)
       if (isAxiosError(err)) {
         const detail = err.response?.data?.detail
         setError(typeof detail === 'string' ? detail : 'Setup failed. Please try again.')
@@ -392,25 +414,53 @@ export default function OnboardingPage() {
   const previewSlots = generatePreviewSlots()
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: colors.bgBase, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: step === 5 ? 'center' : 'flex-start', padding: '40px 24px', fontFamily: 'DM Sans, sans-serif' }}>
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: colors.bgBase,
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: step === 6 ? 'center' : 'flex-start',
+      padding: '40px 24px',
+      fontFamily: 'DM Sans, sans-serif',
+    }}>
 
-      {step !== 5 && (
+      {/* ── Progress header ── */}
+      {step !== 6 && (
         <div style={{ width: '100%', maxWidth: 560, marginBottom: 32 }}>
           <div style={{ marginBottom: 32 }}>
             <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 22, color: colors.primary }}>Phila</span>
             <span style={{ fontSize: 13, color: colors.textMuted, marginLeft: 8 }}>Practice setup</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 32 }}>
-            {STEPS.filter(s => s.num < 5).map((s, i) => (
+            {STEPS.filter(s => s.num < 6).map((s, i) => (
               <React.Fragment key={s.num}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, backgroundColor: step > s.num ? colors.primary : step === s.num ? colors.primary : colors.bgElevated, color: step >= s.num ? '#fff' : colors.textFaint, transition: 'all 0.2s', border: step === s.num ? `2px solid ${colors.primary}` : 'none' }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 14,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700,
+                    backgroundColor: step > s.num ? colors.primary : step === s.num ? colors.primary : colors.bgElevated,
+                    color: step >= s.num ? '#fff' : colors.textFaint,
+                    transition: 'all 0.2s',
+                    border: step === s.num ? `2px solid ${colors.primary}` : 'none',
+                  }}>
                     {step > s.num ? '✓' : s.num}
                   </div>
-                  <span style={{ fontSize: 10, color: step >= s.num ? colors.primary : colors.textFaint, fontWeight: step === s.num ? 600 : 400, whiteSpace: 'nowrap' }}>{s.label}</span>
+                  <span style={{
+                    fontSize: 10,
+                    color: step >= s.num ? colors.primary : colors.textFaint,
+                    fontWeight: step === s.num ? 600 : 400,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {s.label}
+                  </span>
                 </div>
-                {i < 3 && (
-                  <div style={{ flex: 1, height: 1, backgroundColor: step > s.num ? colors.primary : colors.border, margin: '0 8px', marginBottom: 20, transition: 'background 0.3s' }} />
+                {i < 4 && (
+                  <div style={{
+                    flex: 1, height: 1,
+                    backgroundColor: step > s.num ? colors.primary : colors.border,
+                    margin: '0 8px', marginBottom: 20,
+                    transition: 'background 0.3s',
+                  }} />
                 )}
               </React.Fragment>
             ))}
@@ -418,14 +468,22 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {step !== 5 && (
-        <div style={{ width: '100%', maxWidth: 560, backgroundColor: colors.bgSurface, borderRadius: 16, border: `1px solid ${colors.border}`, padding: 32 }}>
+      {/* ── Step card ── */}
+      {step !== 6 && (
+        <div style={{
+          width: '100%', maxWidth: 560,
+          backgroundColor: colors.bgSurface,
+          borderRadius: 16, border: `1px solid ${colors.border}`,
+          padding: 32,
+        }}>
 
           {/* ── STEP 1 — Professional ── */}
           {step === 1 && (
             <>
               <div style={{ marginBottom: 28 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0, marginBottom: 4 }}>Professional details</h2>
+                <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0, marginBottom: 4 }}>
+                  Professional details
+                </h2>
                 <p style={{ fontSize: 13, color: colors.textMuted, margin: 0 }}>Tell us about your medical background</p>
               </div>
 
@@ -460,11 +518,21 @@ export default function OnboardingPage() {
 
               {field(<>
                 {label('Bio')}
-                <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Tell patients about yourself and your approach to care..." rows={3} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} />
+                <textarea
+                  value={bio}
+                  onChange={e => setBio(e.target.value)}
+                  placeholder="Tell patients about yourself and your approach to care..."
+                  rows={3}
+                  style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }}
+                />
               </>)}
 
               <button
-                onClick={() => { if (!specialty || !qualification) { setError('Please fill in specialty and qualification'); return }; setError(''); setStep(2) }}
+                onClick={() => {
+                  if (!specialty || !qualification) { setError('Please fill in specialty and qualification'); return }
+                  setError('')
+                  setStep(2)
+                }}
                 style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Syne, sans-serif' }}
               >
                 Continue →
@@ -477,7 +545,9 @@ export default function OnboardingPage() {
           {step === 2 && (
             <>
               <div style={{ marginBottom: 28 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0, marginBottom: 4 }}>Practice details</h2>
+                <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0, marginBottom: 4 }}>
+                  Practice details
+                </h2>
                 <p style={{ fontSize: 13, color: colors.textMuted, margin: 0 }}>Where patients will find and book you</p>
               </div>
 
@@ -486,7 +556,6 @@ export default function OnboardingPage() {
                 <input value={practiceName} onChange={e => setPracticeName(e.target.value)} placeholder="e.g. Healthpoint Medical Centre" style={inp} />
               </>)}
 
-              {/* Surgery location */}
               <div style={{ marginBottom: 18 }}>
                 <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 10 }}>
                   Surgery / Practice location
@@ -497,18 +566,10 @@ export default function OnboardingPage() {
                     Your surgery address will be pinned on the Phila map so nearby patients can find and book you.
                   </p>
                 </div>
-
-                {/* Autocomplete */}
                 <div style={{ marginBottom: 14 }}>
                   {label('Street address *')}
-                  <AddressAutocomplete
-                    colors={colors}
-                    inp={inp}
-                    onSelect={handleAddressSelect}
-                  />
+                  <AddressAutocomplete colors={colors} inp={inp} onSelect={handleAddressSelect} />
                 </div>
-
-                {/* City + Province — auto-filled but editable */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <div>
                     {label('City / Town *')}
@@ -549,7 +610,13 @@ export default function OnboardingPage() {
                     <button
                       key={aid}
                       onClick={() => toggleAid(aid)}
-                      style={{ padding: '6px 13px', borderRadius: 999, border: `1px solid ${selectedAids.includes(aid) ? colors.primary : colors.border}`, backgroundColor: selectedAids.includes(aid) ? colors.primaryBg : 'transparent', color: selectedAids.includes(aid) ? colors.primary : colors.textMuted, fontSize: 12, fontWeight: selectedAids.includes(aid) ? 600 : 400, cursor: 'pointer' }}
+                      style={{
+                        padding: '6px 13px', borderRadius: 999,
+                        border: `1px solid ${selectedAids.includes(aid) ? colors.primary : colors.border}`,
+                        backgroundColor: selectedAids.includes(aid) ? colors.primaryBg : 'transparent',
+                        color: selectedAids.includes(aid) ? colors.primary : colors.textMuted,
+                        fontSize: 12, fontWeight: selectedAids.includes(aid) ? 600 : 400, cursor: 'pointer',
+                      }}
                     >
                       {aid}
                     </button>
@@ -560,7 +627,11 @@ export default function OnboardingPage() {
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => setStep(1)} style={{ flex: 1, padding: '13px', borderRadius: 10, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 14, cursor: 'pointer' }}>← Back</button>
                 <button
-                  onClick={() => { if (!practiceName || !address || !city || !province || !fee) { setError('Please fill in all required fields'); return }; setError(''); setStep(3) }}
+                  onClick={() => {
+                    if (!practiceName || !address || !city || !province || !fee) { setError('Please fill in all required fields'); return }
+                    setError('')
+                    setStep(3)
+                  }}
                   style={{ flex: 2, padding: '13px', borderRadius: 10, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Syne, sans-serif' }}
                 >
                   Continue →
@@ -570,8 +641,125 @@ export default function OnboardingPage() {
             </>
           )}
 
-          {/* ── STEP 3 — Working hours ── */}
+          {/* ── STEP 3 — Photos ── */}
           {step === 3 && (
+            <>
+              <div style={{ marginBottom: 28 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0, marginBottom: 4 }}>
+                  Practice photos
+                </h2>
+                <p style={{ fontSize: 13, color: colors.textMuted, margin: 0 }}>
+                  Add at least 1 photo of your practice. Patients are more likely to book when they can see where they're going.
+                </p>
+              </div>
+
+              {/* Upload zone */}
+              <label style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 8, padding: '28px 20px',
+                border: `2px dashed ${imagePreviews.length > 0 ? colors.primaryBorder : colors.border}`,
+                borderRadius: 12, backgroundColor: colors.bgElevated,
+                cursor: imageFiles.length >= 4 ? 'not-allowed' : 'pointer',
+                opacity: imageFiles.length >= 4 ? 0.5 : 1,
+                marginBottom: 16, transition: 'all 0.2s',
+              }}>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  disabled={imageFiles.length >= 4}
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || [])
+                    const remaining = 4 - imageFiles.length
+                    const toAdd = files.slice(0, remaining)
+                    setImageFiles(prev => [...prev, ...toAdd])
+                    setImagePreviews(prev => [...prev, ...toAdd.map(f => URL.createObjectURL(f))])
+                  }}
+                />
+                <span style={{ fontSize: 28 }}>📷</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>
+                  {imageFiles.length >= 4 ? 'Maximum 4 photos reached' : 'Click to add photos'}
+                </span>
+                <span style={{ fontSize: 12, color: colors.textFaint }}>
+                  JPEG, PNG or WebP · Up to 4 photos
+                </span>
+              </label>
+
+              {/* Preview grid */}
+              {imagePreviews.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
+                  {imagePreviews.map((preview, i) => (
+                    <div key={i} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '16/9', border: `1px solid ${colors.border}` }}>
+                      <img
+                        src={preview}
+                        alt={`Practice photo ${i + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                      <button
+                        onClick={() => {
+                          setImageFiles(prev => prev.filter((_, idx) => idx !== i))
+                          setImagePreviews(prev => prev.filter((_, idx) => idx !== i))
+                        }}
+                        style={{
+                          position: 'absolute', top: 6, right: 6,
+                          width: 26, height: 26, borderRadius: 13,
+                          backgroundColor: 'rgba(0,0,0,0.65)', border: 'none',
+                          color: '#fff', fontSize: 16, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          lineHeight: 1,
+                        }}
+                      >
+                        ×
+                      </button>
+                      {i === 0 && (
+                        <div style={{
+                          position: 'absolute', bottom: 6, left: 6,
+                          backgroundColor: colors.primary, color: '#fff',
+                          fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                          borderRadius: 999, fontFamily: 'Syne, sans-serif',
+                        }}>
+                          COVER
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Tip */}
+              <div style={{
+                backgroundColor: colors.primaryBg, border: `1px solid ${colors.primaryBorder}`,
+                borderRadius: 10, padding: '10px 14px', marginBottom: 20,
+                fontSize: 12, color: colors.textMuted, lineHeight: 1.6,
+              }}>
+                💡 <strong style={{ color: colors.text }}>Tip:</strong> The first photo will be used as your cover image on search results and your profile card.
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setStep(2)}
+                  style={{ flex: 1, padding: '13px', borderRadius: 10, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 14, cursor: 'pointer' }}
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={() => {
+                    if (imageFiles.length === 0) { setError('Please add at least 1 practice photo'); return }
+                    setError('')
+                    setStep(4)
+                  }}
+                  style={{ flex: 2, padding: '13px', borderRadius: 10, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Syne, sans-serif' }}
+                >
+                  Continue →
+                </button>
+              </div>
+              {error && <p style={{ color: '#DC2626', fontSize: 12, marginTop: 10, textAlign: 'center' }}>{error}</p>}
+            </>
+          )}
+
+          {/* ── STEP 4 — Working hours ── */}
+          {step === 4 && (
             <>
               <div style={{ marginBottom: 28 }}>
                 <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0, marginBottom: 4 }}>Working hours</h2>
@@ -580,7 +768,13 @@ export default function OnboardingPage() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
                 {workingHours.map((wh, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', backgroundColor: wh.is_active ? colors.primaryBg : colors.bgElevated, borderRadius: 10, border: `1px solid ${wh.is_active ? colors.primaryBorder : colors.border}`, transition: 'all 0.15s' }}>
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                    backgroundColor: wh.is_active ? colors.primaryBg : colors.bgElevated,
+                    borderRadius: 10,
+                    border: `1px solid ${wh.is_active ? colors.primaryBorder : colors.border}`,
+                    transition: 'all 0.15s',
+                  }}>
                     <input
                       type="checkbox"
                       checked={wh.is_active}
@@ -607,7 +801,6 @@ export default function OnboardingPage() {
                         />
                         <button
                           onClick={() => copyToAll(i)}
-                          title="Copy these hours to all active days"
                           style={{ marginLeft: 'auto', fontSize: 11, color: colors.primary, background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
                         >
                           Copy to all
@@ -621,16 +814,19 @@ export default function OnboardingPage() {
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => setStep(2)} style={{ flex: 1, padding: '13px', borderRadius: 10, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 14, cursor: 'pointer' }}>← Back</button>
-                <button onClick={() => setStep(4)} style={{ flex: 2, padding: '13px', borderRadius: 10, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Syne, sans-serif' }}>
+                <button onClick={() => setStep(3)} style={{ flex: 1, padding: '13px', borderRadius: 10, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 14, cursor: 'pointer' }}>← Back</button>
+                <button
+                  onClick={() => setStep(5)}
+                  style={{ flex: 2, padding: '13px', borderRadius: 10, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'Syne, sans-serif' }}
+                >
                   Preview schedule →
                 </button>
               </div>
             </>
           )}
 
-          {/* ── STEP 4 — Preview ── */}
-          {step === 4 && (
+          {/* ── STEP 5 — Preview ── */}
+          {step === 5 && (
             <>
               <div style={{ marginBottom: 28 }}>
                 <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: colors.text, margin: 0, marginBottom: 4 }}>Your schedule preview</h2>
@@ -644,6 +840,9 @@ export default function OnboardingPage() {
                   <span style={{ fontSize: 12, fontWeight: 600, color: colors.primary, backgroundColor: colors.primaryBg, borderRadius: 999, padding: '3px 10px', border: `1px solid ${colors.primaryBorder}` }}>R{fee} / visit</span>
                   <span style={{ fontSize: 12, color: colors.textMuted, backgroundColor: colors.bgSurface, borderRadius: 999, padding: '3px 10px', border: `1px solid ${colors.border}` }}>{slotDuration} min slots</span>
                   <span style={{ fontSize: 12, color: colors.textMuted, backgroundColor: colors.bgSurface, borderRadius: 999, padding: '3px 10px', border: `1px solid ${colors.border}` }}>{workingHours.filter(h => h.is_active).length} days/week</span>
+                  <span style={{ fontSize: 12, color: colors.primary, backgroundColor: colors.primaryBg, borderRadius: 999, padding: '3px 10px', border: `1px solid ${colors.primaryBorder}` }}>
+                    📷 {imageFiles.length} photo{imageFiles.length !== 1 ? 's' : ''}
+                  </span>
                 </div>
               </div>
 
@@ -672,7 +871,13 @@ export default function OnboardingPage() {
 
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 24 }}>
                 {workingHours.map((wh, i) => (
-                  <span key={i} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 999, border: `1px solid ${wh.is_active ? colors.primaryBorder : colors.border}`, backgroundColor: wh.is_active ? colors.primaryBg : 'transparent', color: wh.is_active ? colors.primary : colors.textFaint, fontWeight: wh.is_active ? 600 : 400 }}>
+                  <span key={i} style={{
+                    fontSize: 11, padding: '4px 10px', borderRadius: 999,
+                    border: `1px solid ${wh.is_active ? colors.primaryBorder : colors.border}`,
+                    backgroundColor: wh.is_active ? colors.primaryBg : 'transparent',
+                    color: wh.is_active ? colors.primary : colors.textFaint,
+                    fontWeight: wh.is_active ? 600 : 400,
+                  }}>
                     {DAYS[i].slice(0, 3)}
                   </span>
                 ))}
@@ -681,13 +886,16 @@ export default function OnboardingPage() {
               {error && <p style={{ color: '#DC2626', fontSize: 12, marginBottom: 12, textAlign: 'center' }}>{error}</p>}
 
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => setStep(3)} style={{ flex: 1, padding: '13px', borderRadius: 10, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 14, cursor: 'pointer' }}>← Back</button>
+                <button onClick={() => setStep(4)} style={{ flex: 1, padding: '13px', borderRadius: 10, border: `1px solid ${colors.border}`, backgroundColor: colors.bgElevated, color: colors.textMuted, fontSize: 14, cursor: 'pointer' }}>← Back</button>
                 <button
                   onClick={() => void handleSubmit()}
                   disabled={loading}
                   style={{ flex: 2, padding: '13px', borderRadius: 10, border: 'none', backgroundColor: colors.primary, color: '#fff', fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'Syne, sans-serif', opacity: loading ? 0.7 : 1 }}
                 >
-                  {loading ? 'Setting up...' : 'Launch my practice 🚀'}
+                  {loading
+                    ? uploadingImages ? 'Uploading photos...' : 'Setting up...'
+                    : 'Launch my practice 🚀'
+                  }
                 </button>
               </div>
             </>
@@ -695,8 +903,8 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* ── STEP 5 — Done ── */}
-      {step === 5 && (
+      {/* ── STEP 6 — Done ── */}
+      {step === 6 && (
         <div style={{ textAlign: 'center', maxWidth: 440 }}>
           <div style={{ fontSize: 64, marginBottom: 20 }}>🎉</div>
           <h1 style={{ fontSize: 28, fontWeight: 800, fontFamily: 'Syne, sans-serif', color: colors.text, marginBottom: 8 }}>
